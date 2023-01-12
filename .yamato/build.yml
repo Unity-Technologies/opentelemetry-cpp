@@ -1,7 +1,7 @@
 build_linux:
   name: build linux
   agent:
-    image: slough-ops/centos-7-base
+    image: slough-ops/centos-8-base
     flavor: b1.large
     type: Unity::VM
   commands:
