@@ -18,7 +18,7 @@ build_linux:
       sed -i -e "s|PWD|`pwd`|g" clang
       chmod +x clang
       export COMPILATION_MODE=opt # defaults to fastbuild
-      CC=`pwd`/clang ./bazelisk build //examples/otlp:libdummy_remove_me
+      CC=`pwd`/clang ./bazelisk build --sandbox_debug --verbose_failures //examples/otlp:libdummy_remove_me
       rm -rf trick opentelemetry-cpp-lin-amd64.zip
       mkdir -p trick/lib
       find bazel-out/ -name '*.a' -exec cp '{}' trick/lib/ ';'
