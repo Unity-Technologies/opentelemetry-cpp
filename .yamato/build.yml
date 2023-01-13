@@ -1,7 +1,7 @@
 build_linux:
   name: build linux
   agent:
-    image: slough-ops/centos-8-base
+    image: slough-ops/ubuntu-20.04-base:latest
     flavor: b1.large
     type: Unity::VM
   commands:
@@ -9,7 +9,8 @@ build_linux:
       set -euxo pipefail
       wget -O bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.11.0/bazelisk-linux-amd64
       chmod +x bazelisk
-      sudo yum install -y zip
+      sudo apt update
+      sudo apt install -y zip build-essential ksh
       .yamato/bee steve internal-unpack public 7za-linux-x64/904b71ca3f79_0d0f2cf7ea23d00d2ba5d151c735ef9f03ed99a9e451c6dcf3a198cbedf69861.zip 7z
       export BEE_INTERNAL_STEVEDORE_7ZA=7z/7za
       .yamato/bee steve internal-unpack public toolchain-llvm-centos-amd64/9.0.1-7.7.1908_9a2f0527b0c16f2524d24e372c7ebb8735e2e85ec99b6914f2a0a00c1e74d34d.7z TC
@@ -18,7 +19,7 @@ build_linux:
       sed -i -e "s|PWD|`pwd`|g" clang
       chmod +x clang
       export COMPILATION_MODE=opt # defaults to fastbuild
-      CC=`pwd`/clang ./bazelisk build --sandbox_debug --verbose_failures //examples/otlp:libdummy_remove_me
+      CC=`pwd`/clang ./bazelisk build --verbose_failures //examples/otlp:libdummy_remove_me
       rm -rf trick opentelemetry-cpp-lin-amd64.zip
       mkdir -p trick/lib
       find bazel-out/ -name '*.a' -exec cp '{}' trick/lib/ ';'
