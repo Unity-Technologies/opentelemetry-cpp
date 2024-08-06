@@ -3,13 +3,14 @@
 
 #pragma once
 
+#include <chrono>
+#include <memory>
 #include <mutex>
 #include <vector>
 
 #include "opentelemetry/sdk/trace/multi_recordable.h"
 #include "opentelemetry/sdk/trace/processor.h"
-
-#include <iostream>
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
@@ -134,7 +135,7 @@ public:
     return result;
   }
 
-  ~MultiSpanProcessor()
+  ~MultiSpanProcessor() override
   {
     Shutdown();
     Cleanup();

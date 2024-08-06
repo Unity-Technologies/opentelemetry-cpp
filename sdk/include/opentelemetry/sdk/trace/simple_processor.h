@@ -4,11 +4,16 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
+#include <memory>
 #include <mutex>
 
 #include "opentelemetry/common/spin_lock_mutex.h"
+#include "opentelemetry/nostd/span.h"
 #include "opentelemetry/sdk/trace/exporter.h"
 #include "opentelemetry/sdk/trace/processor.h"
+#include "opentelemetry/sdk/trace/recordable.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
@@ -40,8 +45,8 @@ public:
     return exporter_->MakeRecordable();
   }
 
-  void OnStart(Recordable &span,
-               const opentelemetry::trace::SpanContext &parent_context) noexcept override
+  void OnStart(Recordable & /* span */,
+               const opentelemetry::trace::SpanContext & /* parent_context */) noexcept override
   {}
 
   void OnEnd(std::unique_ptr<Recordable> &&span) noexcept override
@@ -58,6 +63,11 @@ public:
   bool ForceFlush(
       std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept override
   {
+    if (exporter_ != nullptr)
+    {
+      return exporter_->ForceFlush(timeout);
+    }
+
     return true;
   }
 
@@ -72,12 +82,17 @@ public:
     return true;
   }
 
-  ~SimpleSpanProcessor() { Shutdown(); }
+  ~SimpleSpanProcessor() override { Shutdown(); }
 
 private:
   std::unique_ptr<SpanExporter> exporter_;
   opentelemetry::common::SpinLockMutex lock_;
+#if defined(__cpp_lib_atomic_value_initialization) && \
+    __cpp_lib_atomic_value_initialization >= 201911L
+  std::atomic_flag shutdown_latch_{};
+#else
   std::atomic_flag shutdown_latch_ = ATOMIC_FLAG_INIT;
+#endif
 };
 }  // namespace trace
 }  // namespace sdk

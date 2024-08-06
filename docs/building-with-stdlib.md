@@ -19,7 +19,7 @@ API surface classes with [Abseil classes](https://abseil.io/) instead of
 
 * ABI stability: scenario where different modules are compiled with different
   compiler and incompatible standard library.
-* backport of C++17 and above features to C++11 compiler.
+* backport of C++17 and above features to C++14 compiler.
 
 The need for custom `nostd` classes is significantly diminished when the SDK is
 compiled with C++17 or above compiler. Only `std::span` needs to be backported.
@@ -137,29 +137,37 @@ Visual Studio provides 1st class debug experience for the standard library.
 
 Supported build flavors:
 
-* `nostd` - OpenTelemetry backport of classes for C++11. Not using standard lib.
-* `stdlib`   - Standard Library. Full native experience with C++20 compiler.
-  C++17 works but with additional dependencies, e.g. either MS-GSL or Abseil for
+* `nostd` - OpenTelemetry backport of classes for C++14. Not using standard lib.
+* `stdlib` - Standard Library.
+  Native experience with C++14/C++17/C++20/C++23 compiler.
+  Depending on the stdlib level in effect,
+  C++ features are used from the standard library,
+  completed with `nostd` replacement implementations.
+  C++17 and below works but with additional dependencies,
+  e.g. either MS-GSL or Abseil for
   `std::span` implementation (`gsl::span` or `absl::Span`).
 * `absl`  - TODO: this should allow using Abseil C++ library only (no MS-GSL).
 
 Currently only `nostd` and `stdlib` configurations are implemented in CMake
 build. `absl` is reserved for future use. Build systems other than CMake need to
-`#define HAVE_CPP_STDLIB` to enable the Standard Library classes.
+`#define OPENTELEMETRY_STL_VERSION=<version>` to enable the Standard Library classes.
+
+Valid values for `OPENTELEMETRY_STL_VERSION` are `2011`, `2014`, `2017`, `2020` and
+`2023`.
 
 ### Build matrix
 
 List of compilers that support building with standard library classes:
 
-Compiler           | Language standard | Notes
--------------------|-------------------|-------------------
-Visual Studio 2015 | C++14             | requires `gsl::span` for `std::span` implementation
-Visual Studio 2017 | C++17             | requires `gsl::span` for `std::span` implementation
-Visual Studio 2019 | C++20             |
-Xcode 11.x         | C++17             | requires `gsl::span` for `std::span` implementation
-Xcode 12.x         | C++20             |
-gcc-7              | C++17             | requires `gsl::span` for `std::span` implementation
-gcc-9+             | C++20             |
+| Compiler           | Language standard | Notes                                               |
+| ------------------ | ----------------- | --------------------------------------------------- |
+| Visual Studio 2015 | C++14             | requires `gsl::span` for `std::span` implementation |
+| Visual Studio 2017 | C++17             | requires `gsl::span` for `std::span` implementation |
+| Visual Studio 2019 | C++20             |                                                     |
+| Xcode 11.x         | C++17             | requires `gsl::span` for `std::span` implementation |
+| Xcode 12.x         | C++20             |                                                     |
+| gcc-7              | C++17             | requires `gsl::span` for `std::span` implementation |
+| gcc-9+             | C++20             |                                                     |
 
 If SDK is compiled without standard library classes, then `nostd::variant`
 implementation internally uses a private snapshot of [Abseil

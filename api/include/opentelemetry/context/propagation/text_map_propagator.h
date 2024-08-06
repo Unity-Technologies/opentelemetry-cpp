@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <cstdint>
 #include "opentelemetry/context/context.h"
+#include "opentelemetry/nostd/function_ref.h"
 #include "opentelemetry/nostd/string_view.h"
 #include "opentelemetry/version.h"
 
@@ -26,7 +26,7 @@ public:
 
   /* list of all the keys in the carrier.
    By default, it returns true without invoking callback */
-  virtual bool Keys(nostd::function_ref<bool(nostd::string_view)> callback) const noexcept
+  virtual bool Keys(nostd::function_ref<bool(nostd::string_view)> /* callback */) const noexcept
   {
     return true;
   }

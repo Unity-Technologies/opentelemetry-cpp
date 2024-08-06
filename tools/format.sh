@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
 if [[ ! -e tools/format.sh ]]; then
   echo "This tool must be run from the topmost directory." >&2
   exit 1
@@ -6,7 +10,7 @@ fi
 
 set -e
 
-FIND="find . -name third_party -prune -o -name tools -prune -o -name .git -prune -o -name _deps -prune -o -name .build -prune -o -name out -prune -o -name .vs -prune -o -name opentelemetry_logo.png -prune -o -name TraceLoggingDynamic.h -prune -o -name thrift-gen -prune -o"
+FIND="find . -name third_party -prune -o -name tools -prune -o -name .git -prune -o -name _deps -prune -o -name .build -prune -o -name out -prune -o -name .vs -prune -o -name opentelemetry_logo.png -prune -o -name TraceLoggingDynamic.h -prune -o"
 
 # GNU syntax.
 SED=(sed -i)
@@ -19,14 +23,14 @@ fi
 # No CRLF line endings, except Windows files.
 "${SED[@]}" 's/\r$//' $($FIND -name '*.ps1' -prune -o \
   -name '*.cmd' -prune -o -type f -print)
-# No trailing spaces.
-"${SED[@]}" 's/ \+$//' $($FIND -type f -print)
+# No trailing spaces, except in patch.
+"${SED[@]}" 's/ \+$//' $($FIND -name "*.patch" -prune -o -type f -print)
 
-# If not overridden, try to use clang-format-8 or clang-format.
+# If not overridden, try to use clang-format-18 or clang-format.
 if [[ -z "$CLANG_FORMAT" ]]; then
   CLANG_FORMAT=clang-format
-  if which clang-format-10 >/dev/null; then
-    CLANG_FORMAT=clang-format-10
+  if which clang-format-18 >/dev/null; then
+    CLANG_FORMAT=clang-format-18
   fi
 fi
 

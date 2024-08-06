@@ -3,17 +3,20 @@
 
 #pragma once
 
-#ifdef ENABLE_LOGS_PREVIEW
+#include <chrono>
+#include <memory>
+#include <vector>
 
-#  include "opentelemetry/sdk/logs/processor.h"
-#  include "opentelemetry/sdk/resource/resource.h"
-#  include "opentelemetry/version.h"
+#include "opentelemetry/sdk/logs/processor.h"
+#include "opentelemetry/sdk/resource/resource.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
 {
 namespace logs
 {
+
 /**
  * A class which stores the LoggerContext context.
  *
@@ -30,19 +33,19 @@ namespace logs
 class LoggerContext
 {
 public:
-  explicit LoggerContext(std::vector<std::unique_ptr<LogProcessor>> &&processors,
-                         opentelemetry::sdk::resource::Resource resource =
+  explicit LoggerContext(std::vector<std::unique_ptr<LogRecordProcessor>> &&processors,
+                         const opentelemetry::sdk::resource::Resource &resource =
                              opentelemetry::sdk::resource::Resource::Create({})) noexcept;
 
   /**
-   * Attaches a log processor to list of configured processors to this tracer context.
+   * Attaches a log processor to list of configured processors to this logger context.
    * Processor once attached can't be removed.
    * @param processor The new log processor for this tracer. This must not be
-   * a nullptr. Ownership is given to the `TracerContext`.
+   * a nullptr. Ownership is given to the `LoggerContext`.
    *
    * Note: This method is not thread safe.
    */
-  void AddProcessor(std::unique_ptr<LogProcessor> processor) noexcept;
+  void AddProcessor(std::unique_ptr<LogRecordProcessor> processor) noexcept;
 
   /**
    * Obtain the configured (composite) processor.
@@ -50,7 +53,7 @@ public:
    * Note: When more than one processor is active, this will
    * return an "aggregate" processor
    */
-  LogProcessor &GetProcessor() const noexcept;
+  LogRecordProcessor &GetProcessor() const noexcept;
 
   /**
    * Obtain the resource associated with this tracer context.
@@ -67,15 +70,14 @@ public:
   /**
    * Shutdown the log processor associated with this tracer provider.
    */
-  bool Shutdown(std::chrono::microseconds timeout = std::chrono::microseconds::max()) noexcept;
+  bool Shutdown(std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept;
 
 private:
   //  order of declaration is important here - resource object should be destroyed after processor.
   opentelemetry::sdk::resource::Resource resource_;
-  std::unique_ptr<LogProcessor> processor_;
+  std::unique_ptr<LogRecordProcessor> processor_;
 };
 }  // namespace logs
 }  // namespace sdk
 
 OPENTELEMETRY_END_NAMESPACE
-#endif

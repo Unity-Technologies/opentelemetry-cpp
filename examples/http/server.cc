@@ -3,7 +3,7 @@
 
 #include "server.h"
 #include "opentelemetry/trace/context.h"
-#include "opentelemetry/trace/experimental_semantic_conventions.h"
+#include "opentelemetry/trace/semantic_conventions.h"
 #include "tracer_common.h"
 
 #include <iostream>
@@ -29,8 +29,9 @@ public:
     std::string span_name = request.uri;
 
     // extract context from http header
-    const HttpTextMapCarrier<std::map<std::string, std::string>> carrier(
-        (std::map<std::string, std::string> &)request.headers);
+    std::map<std::string, std::string> &request_headers =
+        const_cast<std::map<std::string, std::string> &>(request.headers);
+    const HttpTextMapCarrier<std::map<std::string, std::string>> carrier(request_headers);
     auto prop        = context::propagation::GlobalTextMapPropagator::GetGlobalPropagator();
     auto current_ctx = context::RuntimeContext::GetCurrent();
     auto new_context = prop->Extract(carrier, current_ctx);
@@ -39,13 +40,13 @@ public:
     // start span with parent context extracted from http header
     auto span = get_tracer("http-server")
                     ->StartSpan(span_name,
-                                {{OTEL_GET_TRACE_ATTR(AttrHttpServerName), server_name},
-                                 {OTEL_GET_TRACE_ATTR(AttrNetHostPort), server_port},
-                                 {OTEL_GET_TRACE_ATTR(AttrHttpMethod), request.method},
-                                 {OTEL_GET_TRACE_ATTR(AttrHttpScheme), "http"},
-                                 {OTEL_GET_TRACE_ATTR(AttrHttpRequestContentLength),
+                                {{SemanticConventions::kServerAddress, server_name},
+                                 {SemanticConventions::kServerPort, server_port},
+                                 {SemanticConventions::kHttpRequestMethod, request.method},
+                                 {SemanticConventions::kUrlScheme, "http"},
+                                 {SemanticConventions::kHttpRequestBodySize,
                                   static_cast<uint64_t>(request.content.length())},
-                                 {OTEL_GET_TRACE_ATTR(AttrHttpClientIp), request.client}},
+                                 {SemanticConventions::kClientAddress, request.client}},
                                 options);
 
     auto scope = get_tracer("http_server")->WithActiveSpan(span);
@@ -69,12 +70,12 @@ public:
 
 int main(int argc, char *argv[])
 {
-  initTracer();
+  InitTracer();
 
   // The port the validation service listens to can be specified via the command line.
   if (argc > 1)
   {
-    server_port = atoi(argv[1]);
+    server_port = static_cast<uint16_t>(atoi(argv[1]));
   }
 
   HttpServer http_server(server_name, server_port);
@@ -90,5 +91,6 @@ int main(int argc, char *argv[])
   }
   http_server.Stop();
   root_span->End();
+  CleanupTracer();
   return 0;
 }

@@ -3,9 +3,14 @@
 
 #pragma once
 
-#ifdef HAVE_CPP_STDLIB
-#  include "opentelemetry/std/string_view.h"
-#else
+#if defined(OPENTELEMETRY_STL_VERSION)
+#  if OPENTELEMETRY_STL_VERSION >= 2017
+#    include "opentelemetry/std/string_view.h"
+#    define OPENTELEMETRY_HAVE_STD_STRING_VIEW
+#  endif
+#endif
+
+#if !defined(OPENTELEMETRY_HAVE_STD_STRING_VIEW)
 #  include <algorithm>
 #  include <cstddef>
 #  include <cstring>
@@ -13,6 +18,7 @@
 #  include <stdexcept>
 #  include <string>
 
+#  include "opentelemetry/common/macros.h"
 #  include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
@@ -38,7 +44,7 @@ public:
 
   string_view(const char *str) noexcept : length_(std::strlen(str)), data_(str) {}
 
-  string_view(const std::basic_string<char> &str) noexcept
+  string_view(const std::basic_string<char> &str OPENTELEMETRY_ATTRIBUTE_LIFETIME_BOUND) noexcept
       : length_(str.length()), data_(str.c_str())
   {}
 
@@ -81,12 +87,12 @@ public:
     if (result == 0)
       result = size() == v.size() ? 0 : (size() < v.size() ? -1 : 1);
     return result;
-  };
+  }
 
   int compare(size_type pos1, size_type count1, string_view v) const
   {
     return substr(pos1, count1).compare(v);
-  };
+  }
 
   int compare(size_type pos1,
               size_type count1,
@@ -95,19 +101,19 @@ public:
               size_type count2) const
   {
     return substr(pos1, count1).compare(v.substr(pos2, count2));
-  };
+  }
 
-  int compare(const char *s) const { return compare(string_view(s)); };
+  int compare(const char *s) const { return compare(string_view(s)); }
 
   int compare(size_type pos1, size_type count1, const char *s) const
   {
     return substr(pos1, count1).compare(string_view(s));
-  };
+  }
 
   int compare(size_type pos1, size_type count1, const char *s, size_type count2) const
   {
     return substr(pos1, count1).compare(string_view(s, count2));
-  };
+  }
 
   size_type find(char ch, size_type pos = 0) const noexcept
   {
@@ -138,9 +144,13 @@ private:
 inline bool operator==(string_view lhs, string_view rhs) noexcept
 {
   return lhs.length() == rhs.length() &&
-#  if _MSC_VER == 1900
-         // Avoid SCL error in Visual Studio 2015
+#  if defined(_MSC_VER)
+#    if _MSC_VER >= 1900 && _MSC_VER <= 1911
+         // Avoid SCL error in Visual Studio 2015, VS2017 update 1 to update 4
          (std::memcmp(lhs.data(), rhs.data(), lhs.length()) == 0);
+#    else
+         std::equal(lhs.data(), lhs.data() + lhs.length(), rhs.data());
+#    endif
 #  else
          std::equal(lhs.data(), lhs.data() + lhs.length(), rhs.data());
 #  endif
@@ -212,4 +222,4 @@ struct hash<OPENTELEMETRY_NAMESPACE::nostd::string_view>
   }
 };
 }  // namespace std
-#endif
+#endif /* OPENTELEMETRY_HAVE_STD_STRING_VIEW */

@@ -1,73 +1,163 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-#ifdef ENABLE_LOGS_PREVIEW
-#  include "opentelemetry/exporters/otlp/otlp_http_exporter.h"
-#  include "opentelemetry/exporters/otlp/otlp_http_log_exporter.h"
-#  include "opentelemetry/logs/provider.h"
-#  include "opentelemetry/sdk/logs/logger_provider.h"
-#  include "opentelemetry/sdk/logs/simple_log_processor.h"
-#  include "opentelemetry/sdk/trace/simple_processor.h"
-#  include "opentelemetry/sdk/trace/tracer_provider.h"
-#  include "opentelemetry/trace/provider.h"
+#include <iostream>
+#include <memory>
+#include <string>
+#include <utility>
 
-#  include <string>
+#include "opentelemetry/exporters/otlp/otlp_environment.h"
+#include "opentelemetry/exporters/otlp/otlp_http.h"
+#include "opentelemetry/exporters/otlp/otlp_http_exporter_factory.h"
+#include "opentelemetry/exporters/otlp/otlp_http_exporter_options.h"
+#include "opentelemetry/exporters/otlp/otlp_http_log_record_exporter_factory.h"
+#include "opentelemetry/exporters/otlp/otlp_http_log_record_exporter_options.h"
+#include "opentelemetry/logs/log_record.h"
+#include "opentelemetry/logs/logger_provider.h"
+#include "opentelemetry/logs/provider.h"
+#include "opentelemetry/sdk/common/global_log_handler.h"
+#include "opentelemetry/sdk/logs/logger_provider.h"
+#include "opentelemetry/sdk/logs/logger_provider_factory.h"
+#include "opentelemetry/sdk/logs/recordable.h"
+#include "opentelemetry/sdk/logs/simple_log_record_processor_factory.h"
+#include "opentelemetry/sdk/trace/processor.h"
+#include "opentelemetry/sdk/trace/recordable.h"
+#include "opentelemetry/sdk/trace/simple_processor_factory.h"
+#include "opentelemetry/sdk/trace/tracer_provider.h"
+#include "opentelemetry/sdk/trace/tracer_provider_factory.h"
+#include "opentelemetry/trace/provider.h"
+#include "opentelemetry/trace/span_id.h"
+#include "opentelemetry/trace/tracer_provider.h"
 
-#  ifdef BAZEL_BUILD
-#    include "examples/common/logs_foo_library/foo_library.h"
-#  else
-#    include "logs_foo_library/foo_library.h"
-#  endif
+#ifdef BAZEL_BUILD
+#  include "examples/common/logs_foo_library/foo_library.h"
+#else
+#  include "logs_foo_library/foo_library.h"
+#endif
 
 namespace trace     = opentelemetry::trace;
-namespace nostd     = opentelemetry::nostd;
 namespace otlp      = opentelemetry::exporter::otlp;
 namespace logs_sdk  = opentelemetry::sdk::logs;
 namespace logs      = opentelemetry::logs;
 namespace trace_sdk = opentelemetry::sdk::trace;
 
+namespace internal_log = opentelemetry::sdk::common::internal_log;
+
 namespace
 {
 
-opentelemetry::exporter::otlp::OtlpHttpExporterOptions opts;
+opentelemetry::exporter::otlp::OtlpHttpExporterOptions trace_opts;
+
+#ifdef OPENTELEMETRY_DEPRECATED_SDK_FACTORY
+std::shared_ptr<opentelemetry::trace::TracerProvider> tracer_provider;
+#else
+std::shared_ptr<opentelemetry::sdk::trace::TracerProvider> tracer_provider;
+#endif /* OPENTELEMETRY_DEPRECATED_SDK_FACTORY */
+
 void InitTracer()
 {
+  if (trace_opts.url.size() > 9)
+  {
+    if (trace_opts.url.substr(trace_opts.url.size() - 8) == "/v1/logs")
+    {
+      trace_opts.url = trace_opts.url.substr(0, trace_opts.url.size() - 8) + "/v1/traces";
+    }
+    else if (trace_opts.url.substr(trace_opts.url.size() - 9) == "/v1/logs/")
+    {
+      trace_opts.url = trace_opts.url.substr(0, trace_opts.url.size() - 9) + "/v1/traces";
+    }
+    else
+    {
+      trace_opts.url = opentelemetry::exporter::otlp::GetOtlpDefaultHttpTracesEndpoint();
+    }
+  }
+  std::cout << "Using " << trace_opts.url << " to export trace spans." << '\n';
+
   // Create OTLP exporter instance
-  auto exporter  = std::unique_ptr<trace_sdk::SpanExporter>(new otlp::OtlpHttpExporter(opts));
-  auto processor = std::unique_ptr<trace_sdk::SpanProcessor>(
-      new trace_sdk::SimpleSpanProcessor(std::move(exporter)));
-  auto provider =
-      nostd::shared_ptr<trace::TracerProvider>(new trace_sdk::TracerProvider(std::move(processor)));
+  auto exporter   = otlp::OtlpHttpExporterFactory::Create(trace_opts);
+  auto processor  = trace_sdk::SimpleSpanProcessorFactory::Create(std::move(exporter));
+  tracer_provider = trace_sdk::TracerProviderFactory::Create(std::move(processor));
+
   // Set the global trace provider
-  trace::Provider::SetTracerProvider(provider);
+  std::shared_ptr<opentelemetry::trace::TracerProvider> api_provider = tracer_provider;
+  trace::Provider::SetTracerProvider(api_provider);
 }
 
-opentelemetry::exporter::otlp::OtlpHttpLogExporterOptions logger_opts;
+void CleanupTracer()
+{
+  // We call ForceFlush to prevent to cancel running exportings, It's optional.
+  if (tracer_provider)
+  {
+#ifdef OPENTELEMETRY_DEPRECATED_SDK_FACTORY
+    static_cast<opentelemetry::sdk::trace::TracerProvider *>(tracer_provider.get())->ForceFlush();
+#else
+    tracer_provider->ForceFlush();
+#endif /* OPENTELEMETRY_DEPRECATED_SDK_FACTORY */
+  }
+
+  tracer_provider.reset();
+  std::shared_ptr<opentelemetry::trace::TracerProvider> none;
+  trace::Provider::SetTracerProvider(none);
+}
+
+opentelemetry::exporter::otlp::OtlpHttpLogRecordExporterOptions logger_opts;
+
+#ifdef OPENTELEMETRY_DEPRECATED_SDK_FACTORY
+std::shared_ptr<opentelemetry::logs::LoggerProvider> logger_provider;
+#else
+std::shared_ptr<opentelemetry::sdk::logs::LoggerProvider> logger_provider;
+#endif /* OPENTELEMETRY_DEPRECATED_SDK_FACTORY */
+
 void InitLogger()
 {
+  std::cout << "Using " << logger_opts.url << " to export log records." << '\n';
   logger_opts.console_debug = true;
   // Create OTLP exporter instance
-  auto exporter =
-      std::unique_ptr<logs_sdk::LogExporter>(new otlp::OtlpHttpLogExporter(logger_opts));
-  auto sdkProvider = std::shared_ptr<logs_sdk::LoggerProvider>(
-      new logs_sdk::LoggerProvider(std::unique_ptr<logs_sdk::LogProcessor>(
-          new logs_sdk::SimpleLogProcessor(std::move(exporter)))));
-  auto apiProvider = nostd::shared_ptr<logs::LoggerProvider>(sdkProvider);
-  auto provider    = nostd::shared_ptr<logs::LoggerProvider>(apiProvider);
-  opentelemetry::logs::Provider::SetLoggerProvider(provider);
+  auto exporter   = otlp::OtlpHttpLogRecordExporterFactory::Create(logger_opts);
+  auto processor  = logs_sdk::SimpleLogRecordProcessorFactory::Create(std::move(exporter));
+  logger_provider = logs_sdk::LoggerProviderFactory::Create(std::move(processor));
+
+  std::shared_ptr<opentelemetry::logs::LoggerProvider> api_provider = logger_provider;
+  opentelemetry::logs::Provider::SetLoggerProvider(api_provider);
+}
+
+void CleanupLogger()
+{
+  // We call ForceFlush to prevent to cancel running exportings, It's optional.
+  if (logger_provider)
+  {
+#ifdef OPENTELEMETRY_DEPRECATED_SDK_FACTORY
+    static_cast<opentelemetry::sdk::logs::LoggerProvider *>(logger_provider.get())->ForceFlush();
+#else
+    logger_provider->ForceFlush();
+#endif /* OPENTELEMETRY_DEPRECATED_SDK_FACTORY */
+  }
+
+  logger_provider.reset();
+  std::shared_ptr<logs::LoggerProvider> none;
+  opentelemetry::logs::Provider::SetLoggerProvider(none);
 }
 }  // namespace
 
+/*
+  Usage:
+  - example_otlp_http_log
+  - example_otlp_http_log <URL>
+  - example_otlp_http_log <URL> <DEBUG>
+  - example_otlp_http_log <URL> <DEBUG> <BIN>
+  <DEBUG> = yes|no, to turn console debug on or off
+  <BIN> = bin, to export in binary format
+*/
 int main(int argc, char *argv[])
 {
   if (argc > 1)
   {
-    opts.url        = argv[1];
+    trace_opts.url  = argv[1];
     logger_opts.url = argv[1];
     if (argc > 2)
     {
-      std::string debug  = argv[2];
-      opts.console_debug = debug != "" && debug != "0" && debug != "no";
+      std::string debug        = argv[2];
+      trace_opts.console_debug = debug != "" && debug != "0" && debug != "no";
     }
 
     if (argc > 3)
@@ -75,18 +165,20 @@ int main(int argc, char *argv[])
       std::string binary_mode = argv[3];
       if (binary_mode.size() >= 3 && binary_mode.substr(0, 3) == "bin")
       {
-        opts.content_type        = opentelemetry::exporter::otlp::HttpRequestContentType::kBinary;
+        trace_opts.content_type  = opentelemetry::exporter::otlp::HttpRequestContentType::kBinary;
         logger_opts.content_type = opentelemetry::exporter::otlp::HttpRequestContentType::kBinary;
       }
     }
   }
+
+  if (trace_opts.console_debug)
+  {
+    internal_log::GlobalLogHandler::SetLogLevel(internal_log::LogLevel::Debug);
+  }
+
   InitLogger();
   InitTracer();
   foo_library();
+  CleanupTracer();
+  CleanupLogger();
 }
-#else
-int main()
-{
-  return 0;
-}
-#endif

@@ -4,12 +4,34 @@
 #pragma once
 
 // Try to use either `std::span` or `gsl::span`
-#ifdef HAVE_CPP_STDLIB
-#  include "opentelemetry/std/span.h"
-#endif
+#if defined(OPENTELEMETRY_STL_VERSION)
+#  if OPENTELEMETRY_STL_VERSION >= 2020
+#    include <array>
+#    include <cstddef>
+#    include <iterator>
+#    include <type_traits>
+
+/**
+ * @brief Clang 14.0.0 with libc++ do not support implicitly construct a span
+ * for a range. We just use our fallback version.
+ *
+ */
+#    if !defined(OPENTELEMETRY_OPTION_USE_STD_SPAN) && defined(_LIBCPP_VERSION)
+#      if _LIBCPP_VERSION <= 14000
+#        define OPENTELEMETRY_OPTION_USE_STD_SPAN 0
+#      endif
+#    endif
+#    ifndef OPENTELEMETRY_OPTION_USE_STD_SPAN
+#      define OPENTELEMETRY_OPTION_USE_STD_SPAN 1
+#    endif
+#    if OPENTELEMETRY_OPTION_USE_STD_SPAN
+#      include "opentelemetry/std/span.h"
+#    endif
+#  endif /* OPENTELEMETRY_STL_VERSION >= 2020 */
+#endif   /* OPENTELEMETRY_STL_VERSION */
 
 // Fallback to `nostd::span` if necessary
-#if !defined(HAVE_SPAN)
+#if !defined(OPENTELEMETRY_HAVE_SPAN)
 #  include <array>
 #  include <cassert>
 #  include <cstddef>
@@ -143,6 +165,8 @@ public:
 
   span(const span &) noexcept = default;
 
+  span &operator=(const span &) noexcept = default;
+
   bool empty() const noexcept { return Extent == 0; }
 
   T *data() const noexcept { return data_; }
@@ -223,6 +247,8 @@ public:
 
   span(const span &) noexcept = default;
 
+  span &operator=(const span &) noexcept = default;
+
   bool empty() const noexcept { return extent_ == 0; }
 
   T *data() const noexcept { return data_; }
@@ -240,9 +266,6 @@ public:
   T *end() const noexcept { return data_ + extent_; }
 
 private:
-  // Note: matches libstdc++'s layout for std::span
-  // See
-  // https://github.com/gcc-mirror/gcc/blob/a60701e05b3878000ff9fdde1aecbc472b9dec5a/libstdc%2B%2B-v3/include/std/span#L402-L403
   size_t extent_;
   T *data_;
 };

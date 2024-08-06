@@ -8,7 +8,11 @@
 #include <utility>
 
 #include "opentelemetry/common/key_value_iterable_view.h"
+#include "opentelemetry/nostd/function_ref.h"
+#include "opentelemetry/nostd/span.h"
+#include "opentelemetry/nostd/string_view.h"
 #include "opentelemetry/nostd/utility.h"
+#include "opentelemetry/trace/span_context.h"
 #include "opentelemetry/trace/span_context_kv_iterable.h"
 #include "opentelemetry/version.h"
 
@@ -20,7 +24,7 @@ namespace trace
 namespace detail
 {
 template <class T>
-inline void take_span_context_kv(SpanContext, common::KeyValueIterableView<T>)
+inline void take_span_context_kv(SpanContext, opentelemetry::common::KeyValueIterableView<T>)
 {}
 
 template <class T, nostd::enable_if_t<common::detail::is_key_value_iterable<T>::value> * = nullptr>
@@ -57,9 +61,8 @@ class SpanContextKeyValueIterableView final : public SpanContextKeyValueIterable
 public:
   explicit SpanContextKeyValueIterableView(const T &links) noexcept : container_{&links} {}
 
-  bool ForEachKeyValue(
-      nostd::function_ref<bool(SpanContext, const opentelemetry::common::KeyValueIterable &)>
-          callback) const noexcept override
+  bool ForEachKeyValue(nostd::function_ref<bool(SpanContext, const common::KeyValueIterable &)>
+                           callback) const noexcept override
   {
     auto iter = std::begin(*container_);
     auto last = std::end(*container_);
@@ -78,11 +81,10 @@ public:
 private:
   const T *container_;
 
-  bool do_callback(
-      SpanContext span_context,
-      const common::KeyValueIterable &attributes,
-      nostd::function_ref<bool(SpanContext, const opentelemetry::common::KeyValueIterable &)>
-          callback) const noexcept
+  bool do_callback(SpanContext span_context,
+                   const common::KeyValueIterable &attributes,
+                   nostd::function_ref<bool(SpanContext, const common::KeyValueIterable &)>
+                       callback) const noexcept
   {
     if (!callback(span_context, attributes))
     {

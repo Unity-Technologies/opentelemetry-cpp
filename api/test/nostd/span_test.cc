@@ -60,11 +60,6 @@ TEST(SpanTest, PointerCountConstruction)
   span<int, 3> s2{array.data(), array.size()};
   EXPECT_EQ(s2.data(), array.data());
   EXPECT_EQ(s2.size(), array.size());
-
-#ifndef HAVE_CPP_STDLIB
-  /* This test is not supposed to fail with STL. Why is this invalid construct? */
-  EXPECT_DEATH((span<int, 2>{array.data(), array.size()}), ".*");
-#endif
 }
 
 TEST(SpanTest, RangeConstruction)
@@ -78,11 +73,6 @@ TEST(SpanTest, RangeConstruction)
   span<int, 3> s2{std::begin(array), std::end(array)};
   EXPECT_EQ(s2.data(), array);
   EXPECT_EQ(s2.size(), 3);
-
-#ifndef HAVE_CPP_STDLIB
-  /* This test is not supposed to fail with STL. Why is this invalid construct? */
-  EXPECT_DEATH((span<int, 2>{std::begin(array), std::end(array)}), ".*");
-#endif
 }
 
 TEST(SpanTest, ArrayConstruction)
@@ -121,11 +111,6 @@ TEST(SpanTest, ContainerConstruction)
 
   EXPECT_EQ(s2.data(), v.data());
   EXPECT_EQ(s2.size(), v.size());
-
-#ifndef HAVE_CPP_STDLIB
-  /* This test is not supposed to fail with STL. Why is this invalid construct? */
-  EXPECT_DEATH((span<int, 2>{v.data(), 3}), ".*");
-#endif
 
   EXPECT_FALSE((std::is_constructible<span<int>, std::vector<double>>::value));
   EXPECT_FALSE((std::is_constructible<span<int>, std::list<int>>::value));
@@ -182,10 +167,10 @@ TEST(SpanTest, Iteration)
   std::array<int, 3> array = {1, 2, 3};
 
   span<int> s1{array.data(), array.size()};
-  EXPECT_EQ(std::distance(s1.begin(), s1.end()), array.size());
+  EXPECT_EQ(std::distance(s1.begin(), s1.end()), static_cast<ptrdiff_t>(array.size()));
   EXPECT_TRUE(std::equal(s1.begin(), s1.end(), array.begin()));
 
   span<int, 3> s2{array.data(), array.size()};
-  EXPECT_EQ(std::distance(s2.begin(), s2.end()), array.size());
+  EXPECT_EQ(std::distance(s2.begin(), s2.end()), static_cast<ptrdiff_t>(array.size()));
   EXPECT_TRUE(std::equal(s2.begin(), s2.end(), array.begin()));
 }

@@ -1,11 +1,10 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ENABLE_METRICS_PREVIEW
-#  include "opentelemetry/sdk/metrics/metric_reader.h"
-#  include "opentelemetry/sdk/metrics/export/metric_producer.h"
-
-#  include <mutex>
+#include "opentelemetry/sdk/metrics/metric_reader.h"
+#include "opentelemetry/sdk/common/global_log_handler.h"
+#include "opentelemetry/sdk/metrics/export/metric_producer.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
@@ -13,19 +12,12 @@ namespace sdk
 namespace metrics
 {
 
-MetricReader::MetricReader(AggregationTemporality aggregation_temporality)
-    : aggregation_temporality_(aggregation_temporality)
-{}
+MetricReader::MetricReader() : metric_producer_(nullptr), shutdown_(false) {}
 
 void MetricReader::SetMetricProducer(MetricProducer *metric_producer)
 {
   metric_producer_ = metric_producer;
   OnInitialized();
-}
-
-AggregationTemporality MetricReader::GetAggregationTemporality() const noexcept
-{
-  return aggregation_temporality_;
 }
 
 bool MetricReader::Collect(
@@ -36,10 +28,12 @@ bool MetricReader::Collect(
     OTEL_INTERNAL_LOG_WARN(
         "MetricReader::Collect Cannot invoke Collect(). No MetricProducer registered for "
         "collection!")
+    return false;
   }
   if (IsShutdown())
   {
-    OTEL_INTERNAL_LOG_WARN("MetricReader::Collect Cannot invoke Collect(). Shutdown in progress!");
+    // Continue with warning, and let pull and push MetricReader state machine handle this.
+    OTEL_INTERNAL_LOG_WARN("MetricReader::Collect invoked while Shutdown in progress!");
   }
 
   return metric_producer_->Collect(callback);
@@ -53,10 +47,7 @@ bool MetricReader::Shutdown(std::chrono::microseconds timeout) noexcept
     OTEL_INTERNAL_LOG_WARN("MetricReader::Shutdown - Cannot invoke shutdown twice!");
   }
 
-  {
-    const std::lock_guard<opentelemetry::common::SpinLockMutex> locked(lock_);
-    shutdown_ = true;
-  }
+  shutdown_.store(true, std::memory_order_release);
 
   if (!OnShutDown(timeout))
   {
@@ -70,7 +61,7 @@ bool MetricReader::Shutdown(std::chrono::microseconds timeout) noexcept
 bool MetricReader::ForceFlush(std::chrono::microseconds timeout) noexcept
 {
   bool status = true;
-  if (shutdown_)
+  if (IsShutdown())
   {
     OTEL_INTERNAL_LOG_WARN("MetricReader::Shutdown Cannot invoke Force flush on shutdown reader!");
   }
@@ -84,11 +75,9 @@ bool MetricReader::ForceFlush(std::chrono::microseconds timeout) noexcept
 
 bool MetricReader::IsShutdown() const noexcept
 {
-  const std::lock_guard<opentelemetry::common::SpinLockMutex> locked(lock_);
-  return shutdown_;
+  return shutdown_.load(std::memory_order_acquire);
 }
 
 }  // namespace metrics
 }  // namespace sdk
 OPENTELEMETRY_END_NAMESPACE
-#endif

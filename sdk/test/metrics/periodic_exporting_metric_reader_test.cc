@@ -1,19 +1,17 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ENABLE_METRICS_PREVIEW
+#include "opentelemetry/sdk/metrics/export/periodic_exporting_metric_reader.h"
+#include "opentelemetry/sdk/metrics/export/metric_producer.h"
+#include "opentelemetry/sdk/metrics/push_metric_exporter.h"
 
-#  include "opentelemetry/sdk/metrics/export/periodic_exporting_metric_reader.h"
-#  include "opentelemetry/sdk/metrics/export/metric_producer.h"
-#  include "opentelemetry/sdk/metrics/metric_exporter.h"
-
-#  include <gtest/gtest.h>
+#include <gtest/gtest.h>
 
 using namespace opentelemetry;
-using namespace opentelemetry::sdk::instrumentationlibrary;
+using namespace opentelemetry::sdk::instrumentationscope;
 using namespace opentelemetry::sdk::metrics;
 
-class MockPushMetricExporter : public MetricExporter
+class MockPushMetricExporter : public PushMetricExporter
 {
 public:
   opentelemetry::sdk::common::ExportResult Export(const ResourceMetrics &record) noexcept override
@@ -22,16 +20,15 @@ public:
     return opentelemetry::sdk::common::ExportResult::kSuccess;
   }
 
-  bool ForceFlush(
-      std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept override
+  bool ForceFlush(std::chrono::microseconds /* timeout */) noexcept override { return false; }
+
+  sdk::metrics::AggregationTemporality GetAggregationTemporality(
+      sdk::metrics::InstrumentType /* instrument_type */) const noexcept override
   {
-    return false;
+    return sdk::metrics::AggregationTemporality::kCumulative;
   }
 
-  bool Shutdown(std::chrono::microseconds timeout = std::chrono::microseconds(0)) noexcept override
-  {
-    return true;
-  }
+  bool Shutdown(std::chrono::microseconds /* timeout */) noexcept override { return true; }
 
   size_t GetDataCount() { return records_.size(); }
 
@@ -64,7 +61,7 @@ private:
 
 TEST(PeriodicExporingMetricReader, BasicTests)
 {
-  std::unique_ptr<MetricExporter> exporter(new MockPushMetricExporter());
+  std::unique_ptr<PushMetricExporter> exporter(new MockPushMetricExporter());
   PeriodicExportingMetricReaderOptions options;
   options.export_timeout_millis  = std::chrono::milliseconds(200);
   options.export_interval_millis = std::chrono::milliseconds(500);
@@ -73,9 +70,8 @@ TEST(PeriodicExporingMetricReader, BasicTests)
   MockMetricProducer producer;
   reader.SetMetricProducer(&producer);
   std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+  EXPECT_NO_THROW(reader.ForceFlush());
   reader.Shutdown();
   EXPECT_EQ(static_cast<MockPushMetricExporter *>(exporter_ptr)->GetDataCount(),
             static_cast<MockMetricProducer *>(&producer)->GetDataCount());
 }
-
-#endif

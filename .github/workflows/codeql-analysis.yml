@@ -12,21 +12,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
          submodules: 'recursive'
     - name: Remove Third_party Modules from Code Scan
       run: |
         rm -rf third_party
     - name: Setup
+      env:
+        CC: /usr/bin/gcc-10
+        CXX: /usr/bin/g++-10
+        GOOGLETEST_VERSION: 1.12.1
       run: |
-        sudo ./ci/setup_cmake.sh
-        sudo ./ci/setup_ci_environment.sh
+        sudo -E ./ci/setup_googletest.sh
+        sudo -E ./ci/setup_ci_environment.sh
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v1
+      uses: github/codeql-action/init@v3
       with:
        languages: cpp
     - name: Autobuild
-      uses: github/codeql-action/autobuild@v1
+      uses: github/codeql-action/autobuild@v3
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v1
+      uses: github/codeql-action/analyze@v3

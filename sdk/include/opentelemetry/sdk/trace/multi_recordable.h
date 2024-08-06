@@ -3,12 +3,12 @@
 
 #pragma once
 
+#include <map>
+
 #include "opentelemetry/common/timestamp.h"
 #include "opentelemetry/sdk/trace/processor.h"
 #include "opentelemetry/sdk/trace/recordable.h"
 #include "opentelemetry/version.h"
-
-#include <map>
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
@@ -112,6 +112,14 @@ public:
     }
   }
 
+  void SetTraceFlags(opentelemetry::trace::TraceFlags flags) noexcept override
+  {
+    for (auto &recordable : recordables_)
+    {
+      recordable.second->SetTraceFlags(flags);
+    }
+  }
+
   void SetSpanKind(opentelemetry::trace::SpanKind span_kind) noexcept override
   {
     for (auto &recordable : recordables_)
@@ -144,12 +152,11 @@ public:
     }
   }
 
-  void SetInstrumentationLibrary(
-      const InstrumentationLibrary &instrumentation_library) noexcept override
+  void SetInstrumentationScope(const InstrumentationScope &instrumentation_scope) noexcept override
   {
     for (auto &recordable : recordables_)
     {
-      recordable.second->SetInstrumentationLibrary(instrumentation_library);
+      recordable.second->SetInstrumentationScope(instrumentation_scope);
     }
   }
 

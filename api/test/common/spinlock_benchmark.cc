@@ -24,7 +24,7 @@ inline void SpinThrash(benchmark::State &s, SpinLockType &spinlock, LockF lock, 
   // Value we will increment, fighting over a spinlock.
   // The contention is meant to be brief, as close to our expected
   // use cases of "updating pointers" or "pushing an event onto a buffer".
-  std::int64_t value = 0;
+  std::int64_t value OPENTELEMETRY_MAYBE_UNUSED = 0;
 
   std::vector<std::thread> threads;
   threads.reserve(num_threads);
@@ -56,8 +56,7 @@ inline void SpinThrash(benchmark::State &s, SpinLockType &spinlock, LockF lock, 
 static void BM_SpinLockThrashing(benchmark::State &s)
 {
   SpinLockMutex spinlock;
-  SpinThrash(
-      s, spinlock, [](SpinLockMutex &m) { m.lock(); }, [](SpinLockMutex &m) { m.unlock(); });
+  SpinThrash(s, spinlock, [](SpinLockMutex &m) { m.lock(); }, [](SpinLockMutex &m) { m.unlock(); });
 }
 
 // Naive `while(try_lock()) {}` implementation of lock.
@@ -87,7 +86,7 @@ static void BM_ProcYieldSpinLockThrashing(benchmark::State &s)
 #if defined(_MSC_VER)
           YieldProcessor();
 #elif defined(__i386__) || defined(__x86_64__)
-#  if defined(__clang__)
+#  if defined(__clang__) || defined(__INTEL_COMPILER)
           _mm_pause();
 #  else
           __builtin_ia32_pause();
@@ -103,7 +102,12 @@ static void BM_ProcYieldSpinLockThrashing(benchmark::State &s)
 // SpinLock thrashing with thread::yield().
 static void BM_ThreadYieldSpinLockThrashing(benchmark::State &s)
 {
+#if defined(__cpp_lib_atomic_value_initialization) && \
+    __cpp_lib_atomic_value_initialization >= 201911L
+  std::atomic_flag mutex{};
+#else
   std::atomic_flag mutex = ATOMIC_FLAG_INIT;
+#endif
   SpinThrash<std::atomic_flag>(
       s, mutex,
       [](std::atomic_flag &l) {

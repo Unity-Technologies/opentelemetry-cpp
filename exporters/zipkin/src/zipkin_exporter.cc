@@ -1,13 +1,29 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// NOLINTNEXTLINE
 #define _WINSOCKAPI_  // stops including winsock.h
-#include "opentelemetry/exporters/zipkin/zipkin_exporter.h"
-#include <mutex>
+
+#include <stdint.h>
+#include <atomic>
+#include <chrono>
+#include <memory>
+#include <ostream>
+#include <string>
+
+#include "nlohmann/json.hpp"
+
 #include "opentelemetry/exporters/zipkin/recordable.h"
+#include "opentelemetry/exporters/zipkin/zipkin_exporter.h"
+#include "opentelemetry/exporters/zipkin/zipkin_exporter_options.h"
+#include "opentelemetry/ext/http/client/http_client.h"
 #include "opentelemetry/ext/http/client/http_client_factory.h"
 #include "opentelemetry/ext/http/common/url_parser.h"
-#include "opentelemetry/sdk_config.h"
+#include "opentelemetry/nostd/span.h"
+#include "opentelemetry/sdk/common/exporter_utils.h"
+#include "opentelemetry/sdk/common/global_log_handler.h"
+#include "opentelemetry/sdk/trace/recordable.h"
+#include "opentelemetry/version.h"
 
 namespace http_client = opentelemetry::ext::http::client;
 
@@ -76,9 +92,9 @@ sdk::common::ExportResult ZipkinExporter::Export(
   }
   auto body_s = json_spans.dump();
   http_client::Body body_v(body_s.begin(), body_s.end());
-  auto result = http_client_->Post(url_parser_.url_, body_v, options_.headers);
+  auto result = http_client_->PostNoSsl(url_parser_.url_, body_v, options_.headers);
   if (result &&
-      (result.GetResponse().GetStatusCode() == 200 || result.GetResponse().GetStatusCode() == 202))
+      (result.GetResponse().GetStatusCode() >= 200 && result.GetResponse().GetStatusCode() <= 299))
   {
     return sdk::common::ExportResult::kSuccess;
   }
@@ -90,7 +106,6 @@ sdk::common::ExportResult ZipkinExporter::Export(
     }
     return sdk::common::ExportResult::kFailure;
   }
-  return sdk::common::ExportResult::kSuccess;
 }
 
 void ZipkinExporter::InitializeLocalEndpoint()
@@ -110,16 +125,19 @@ void ZipkinExporter::InitializeLocalEndpoint()
   local_end_point_["port"] = url_parser_.port_;
 }
 
-bool ZipkinExporter::Shutdown(std::chrono::microseconds timeout) noexcept
+bool ZipkinExporter::ForceFlush(std::chrono::microseconds /* timeout */) noexcept
 {
-  const std::lock_guard<opentelemetry::common::SpinLockMutex> locked(lock_);
+  return true;
+}
+
+bool ZipkinExporter::Shutdown(std::chrono::microseconds /* timeout */) noexcept
+{
   is_shutdown_ = true;
   return true;
 }
 
 bool ZipkinExporter::isShutdown() const noexcept
 {
-  const std::lock_guard<opentelemetry::common::SpinLockMutex> locked(lock_);
   return is_shutdown_;
 }
 

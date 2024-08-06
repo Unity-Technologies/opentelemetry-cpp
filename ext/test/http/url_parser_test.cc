@@ -7,7 +7,7 @@
 
 namespace http_common = opentelemetry::ext::http::common;
 
-inline const char *const BoolToString(bool b)
+inline const char *BoolToString(bool b)
 {
   return b ? "true" : "false";
 }
@@ -113,6 +113,13 @@ TEST(UrlParserTests, BasicTests)
         {"path", "/path1/path2"},
         {"query", "q1=a1&q2=a2"},
         {"success", "true"}}},
+      {"http://www.abc.com/path1@bbb/path2?q1=a1&q2=a2",
+       {{"host", "www.abc.com"},
+        {"port", "80"},
+        {"scheme", "http"},
+        {"path", "/path1@bbb/path2"},
+        {"query", "q1=a1&q2=a2"},
+        {"success", "true"}}},
 
   };
   for (auto &url_map : urls_map)
@@ -125,5 +132,24 @@ TEST(UrlParserTests, BasicTests)
     ASSERT_EQ(url.scheme_, url_properties["scheme"]);
     ASSERT_EQ(url.path_, url_properties["path"]);
     ASSERT_EQ(url.query_, url_properties["query"]);
+  }
+}
+
+TEST(UrlDecoderTests, BasicTests)
+{
+  std::map<std::string, std::string> testdata{
+      {"Authentication=Basic xxx", "Authentication=Basic xxx"},
+      {"Authentication=Basic%20xxx", "Authentication=Basic xxx"},
+      {"%C3%B6%C3%A0%C2%A7%C3%96abcd%C3%84",
+       "\xc3\xb6\xc3\xa0\xc2\xa7\xc3\x96\x61\x62\x63\x64\xc3\x84"},
+      {"%2x", "%2x"},
+      {"%20", " "},
+      {"text%2", "text%2"},
+  };
+
+  for (auto &testsample : testdata)
+  {
+    ASSERT_EQ(http_common::UrlDecoder::Decode(testsample.first), testsample.second);
+    ASSERT_TRUE(http_common::UrlDecoder::Decode(testsample.first) == testsample.second);
   }
 }

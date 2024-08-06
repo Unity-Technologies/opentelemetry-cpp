@@ -1,14 +1,21 @@
-load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
 
-_ALL_CONTENT = """\
-filegroup(
-    name = "all_srcs",
-    srcs = glob(["**"]),
-    visibility = ["//visibility:public"],
-)
-"""
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
+
+#
+# MAINTAINER
+#
+# This file is used for the Bazel build.
+#
+# When changing (add, upgrade, remove) dependencies
+# please update:
+# - the CMake build, see file
+#   <root>/third_party_release
+# - git submodule, see command
+#   git submodule status
+#
 
 def opentelemetry_cpp_deps():
     """Loads dependencies need to compile the opentelemetry-cpp library."""
@@ -18,10 +25,10 @@ def opentelemetry_cpp_deps():
     maybe(
         http_archive,
         name = "com_github_google_benchmark",
-        sha256 = "1f71c72ce08d2c1310011ea6436b31e39ccab8c2db94186d26657d41747c85d6",
-        strip_prefix = "benchmark-1.6.0",
+        sha256 = "6bc180a57d23d4d9515519f92b0c83d61b05b5bab188961f36ac7b06b0d9e9ce",
+        strip_prefix = "benchmark-1.8.3",
         urls = [
-            "https://github.com/google/benchmark/archive/v1.6.0.tar.gz",
+            "https://github.com/google/benchmark/archive/v1.8.3.tar.gz",
         ],
     )
 
@@ -30,10 +37,10 @@ def opentelemetry_cpp_deps():
     maybe(
         http_archive,
         name = "com_google_googletest",
-        sha256 = "a03a7b24b3a0766dc823c9008dd32c56a1183889c04f084653266af22289ab0c",
-        strip_prefix = "googletest-a6dfd3aca7f2f91f95fc7ab650c95a48420d513d",
+        sha256 = "8ad598c73ad796e0d8280b082cebd82a630d73e73cd3c70057938a6501bba5d7",
+        strip_prefix = "googletest-1.14.0",
         urls = [
-            "https://github.com/google/googletest/archive/a6dfd3aca7f2f91f95fc7ab650c95a48420d513d.tar.gz",
+            "https://github.com/google/googletest/archive/v1.14.0.tar.gz",
         ],
     )
 
@@ -41,31 +48,38 @@ def opentelemetry_cpp_deps():
     maybe(
         http_archive,
         name = "com_google_absl",
-        sha256 = "dd7db6815204c2a62a2160e32c55e97113b0a0178b2f090d6bab5ce36111db4b",
-        strip_prefix = "abseil-cpp-20210324.0",
+        sha256 = "733726b8c3a6d39a4120d7e45ea8b41a434cdacde401cba500f14236c49b39dc",
+        strip_prefix = "abseil-cpp-20240116.2",
         urls = [
-            "https://github.com/abseil/abseil-cpp/archive/20210324.0.tar.gz",
+            "https://github.com/abseil/abseil-cpp/archive/refs/tags/20240116.2.tar.gz",
         ],
+    )
+
+    # gRPC transitively depends on apple_support and rules_apple at older
+    # versions. Bazel 7.x requires newer versions of these rules. By loading
+    # them before grpc, these newer versions are preferrred.
+    maybe(
+        http_archive,
+        name = "build_bazel_apple_support",
+        sha256 = "c4bb2b7367c484382300aee75be598b92f847896fb31bbd22f3a2346adf66a80",
+        url = "https://github.com/bazelbuild/apple_support/releases/download/1.15.1/apple_support.1.15.1.tar.gz",
+    )
+
+    maybe(
+        http_archive,
+        name = "build_bazel_rules_apple",
+        sha256 = "b4df908ec14868369021182ab191dbd1f40830c9b300650d5dc389e0b9266c8d",
+        url = "https://github.com/bazelbuild/rules_apple/releases/download/3.5.1/rules_apple.3.5.1.tar.gz",
     )
 
     # Load gRPC dependency
     maybe(
         http_archive,
-        name = "com_github_grpc_grpc_legacy",
-        sha256 = "024118069912358e60722a2b7e507e9c3b51eeaeee06e2dd9d95d9c16f6639ec",
-        strip_prefix = "grpc-1.39.1",
-        urls = [
-            "https://github.com/grpc/grpc/archive/v1.39.1.tar.gz",
-        ],
-    )
-
-    maybe(
-        http_archive,
         name = "com_github_grpc_grpc",
-        sha256 = "b74ce7d26fe187970d1d8e2c06a5d3391122f7bc1fdce569aff5e435fb8fe780",
-        strip_prefix = "grpc-1.43.2",
+        sha256 = "f40bde4ce2f31760f65dc49a2f50876f59077026494e67dccf23992548b1b04f",
+        strip_prefix = "grpc-1.62.0",
         urls = [
-            "https://github.com/grpc/grpc/archive/v1.43.2.tar.gz",
+            "https://github.com/grpc/grpc/archive/refs/tags/v1.62.0.tar.gz",
         ],
     )
 
@@ -74,10 +88,10 @@ def opentelemetry_cpp_deps():
         http_archive,
         name = "com_github_opentelemetry_proto",
         build_file = "@io_opentelemetry_cpp//bazel:opentelemetry_proto.BUILD",
-        sha256 = "985367f8905e91018e636cbf0d83ab3f834b665c4f5899a27d10cae9657710e2",
-        strip_prefix = "opentelemetry-proto-0.11.0",
+        sha256 = "bed250ceec8e4a83aa5604d7d5595a61945059dc662edd058a9da082283f7a00",
+        strip_prefix = "opentelemetry-proto-1.3.1",
         urls = [
-            "https://github.com/open-telemetry/opentelemetry-proto/archive/v0.11.0.tar.gz",
+            "https://github.com/open-telemetry/opentelemetry-proto/archive/v1.3.1.tar.gz",
         ],
     )
 
@@ -86,9 +100,9 @@ def opentelemetry_cpp_deps():
         http_archive,
         name = "github_nlohmann_json",
         build_file = "@io_opentelemetry_cpp//bazel:nlohmann_json.BUILD",
-        sha256 = "69cc88207ce91347ea530b227ff0776db82dcb8de6704e1a3d74f4841bc651cf",
+        sha256 = "a22461d13119ac5c78f205d3df1db13403e58ce1bb1794edc9313677313f4a9d",
         urls = [
-            "https://github.com/nlohmann/json/releases/download/v3.6.1/include.zip",
+            "https://github.com/nlohmann/json/releases/download/v3.11.3/include.zip",
         ],
     )
 
@@ -96,10 +110,21 @@ def opentelemetry_cpp_deps():
     maybe(
         http_archive,
         name = "com_github_jupp0r_prometheus_cpp",
-        sha256 = "07018db604ea3e61f5078583e87c80932ea10c300d979061490ee1b7dc8e3a41",
-        strip_prefix = "prometheus-cpp-1.0.0",
+        sha256 = "48dbad454d314b836cc667ec4def93ec4a6e4255fc8387c20cacb3b8b6faee30",
+        strip_prefix = "prometheus-cpp-1.2.4",
         urls = [
-            "https://github.com/jupp0r/prometheus-cpp/archive/refs/tags/v1.0.0.tar.gz",
+            "https://github.com/jupp0r/prometheus-cpp/archive/refs/tags/v1.2.4.tar.gz",
+        ],
+    )
+
+    # bazel platforms
+    maybe(
+        http_archive,
+        name = "platforms",
+        sha256 = "218efe8ee736d26a3572663b374a253c012b716d8af0c07e842e82f238a0a7ee",
+        urls = [
+            "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/0.0.10/platforms-0.0.10.tar.gz",
+            "https://github.com/bazelbuild/platforms/releases/download/0.0.10/platforms-0.0.10.tar.gz",
         ],
     )
 
@@ -108,20 +133,11 @@ def opentelemetry_cpp_deps():
         http_archive,
         name = "curl",
         build_file = "@io_opentelemetry_cpp//bazel:curl.BUILD",
-        sha256 = "ba98332752257b47b9dea6d8c0ad25ec1745c20424f1dd3ff2c99ab59e97cf91",
-        strip_prefix = "curl-7.73.0",
-        urls = ["https://curl.haxx.se/download/curl-7.73.0.tar.gz"],
-    )
-
-    # libthrift (optional)
-    maybe(
-        http_archive,
-        name = "com_github_thrift",
-        build_file_content = _ALL_CONTENT,
-        sha256 = "5ae1c4d16452a22eaf9d802ba7489907147c2b316ff38c9758918552fae5132c",
-        strip_prefix = "thrift-0.14.1",
+        sha256 = "816e41809c043ff285e8c0f06a75a1fa250211bbfb2dc0a037eeef39f1a9e427",
+        strip_prefix = "curl-8.4.0",
         urls = [
-            "https://github.com/apache/thrift/archive/refs/tags/v0.14.1.tar.gz",
+            "https://curl.haxx.se/download/curl-8.4.0.tar.gz",
+            "https://github.com/curl/curl/releases/download/curl-8_4_0/curl-8.4.0.tar.gz",
         ],
     )
 
@@ -145,24 +161,26 @@ def opentelemetry_cpp_deps():
         ],
     )
 
-    # boost headers from vcpkg
+    # Opentracing
     maybe(
-        native.new_local_repository,
-        name = "boost_all_hdrs",
-        build_file_content = """
-package(default_visibility = ["//visibility:public"])
-cc_library(
-  name = "boost_all_hdrs",
-  hdrs = glob(
-      ["include/**/*.h*"],
-  ),
-  strip_include_prefix = "include",
-  copts = [
-      "-isystem include",
-      "-fexceptions",
-    ],
-    visibility = ["//visibility:public"],
-)
-        """,
-        path = "vcpkg/installed/x64-windows/",
+        http_archive,
+        name = "com_github_opentracing",
+        sha256 = "5b170042da4d1c4c231df6594da120875429d5231e9baa5179822ee8d1054ac3",
+        strip_prefix = "opentracing-cpp-1.6.0",
+        urls = [
+            "https://github.com/opentracing/opentracing-cpp/archive/refs/tags/v1.6.0.tar.gz",
+        ],
+    )
+
+    # Zlib (optional)
+    maybe(
+        http_archive,
+        name = "zlib",
+        build_file = "@io_opentelemetry_cpp//bazel:zlib.BUILD",
+        sha256 = "d14c38e313afc35a9a8760dadf26042f51ea0f5d154b0630a31da0540107fb98",
+        strip_prefix = "zlib-1.2.13",
+        urls = [
+            "https://github.com/madler/zlib/releases/download/v1.2.13/zlib-1.2.13.tar.xz",
+            "https://zlib.net/zlib-1.2.13.tar.xz",
+        ],
     )

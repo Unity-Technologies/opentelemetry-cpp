@@ -2,8 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
-#ifndef ENABLE_METRICS_PREVIEW
-#  include "opentelemetry/sdk/common/attribute_utils.h"
+
+#include <functional>
+#include <string>
+
+#include "opentelemetry/sdk/metrics/state/filtered_ordered_attribute_map.h"
+#include "opentelemetry/version.h"
+
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
 {
@@ -17,6 +22,12 @@ enum class InstrumentType
   kObservableCounter,
   kObservableGauge,
   kObservableUpDownCounter
+};
+
+enum class InstrumentClass
+{
+  kSync,
+  kAsync
 };
 
 enum class InstrumentValueType
@@ -52,7 +63,8 @@ struct InstrumentDescriptor
   InstrumentValueType value_type_;
 };
 
-using MetricAttributes = opentelemetry::sdk::common::OrderedAttributeMap;
+using MetricAttributes               = opentelemetry::sdk::metrics::FilteredOrderedAttributeMap;
+using AggregationTemporalitySelector = std::function<AggregationTemporality(InstrumentType)>;
 
 /*class InstrumentSelector {
 public:
@@ -67,4 +79,3 @@ InstrumentType type_;
 }  // namespace metrics
 }  // namespace sdk
 OPENTELEMETRY_END_NAMESPACE
-#endif

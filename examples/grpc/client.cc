@@ -1,3 +1,6 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
 // Make sure to include GRPC headers first because otherwise Abseil may create
 // ambiguity with `nostd::variant` if compiled with Visual Studio 2015. Other
 // modern compilers are unaffected.
@@ -11,12 +14,12 @@
 #include <iostream>
 #include <memory>
 #include <string>
-#include "opentelemetry/trace/experimental_semantic_conventions.h"
+
+#include "opentelemetry/trace/semantic_conventions.h"
 #include "tracer_common.h"
 
 using grpc::Channel;
 using grpc::ClientContext;
-using grpc::ClientReader;
 using grpc::Status;
 
 using grpc_example::Greeter;
@@ -30,7 +33,7 @@ using namespace opentelemetry::trace;
 class GreeterClient
 {
 public:
-  GreeterClient(std::shared_ptr<Channel> channel) : stub_(Greeter::NewStub(channel)) {}
+  GreeterClient(const std::shared_ptr<Channel> &channel) : stub_(Greeter::NewStub(channel)) {}
 
   std::string Greet(std::string ip, uint16_t port)
   {
@@ -46,11 +49,11 @@ public:
     std::string span_name = "GreeterClient/Greet";
     auto span             = get_tracer("grpc")->StartSpan(
         span_name,
-        {{OTEL_GET_TRACE_ATTR(AttrRpcSystem), "grpc"},
-         {OTEL_GET_TRACE_ATTR(AttrRpcService), "grpc-example.GreetService"},
-         {OTEL_GET_TRACE_ATTR(AttrRpcMethod), "Greet"},
-         {OTEL_GET_TRACE_ATTR(AttrNetPeerIp), ip},
-         {OTEL_GET_TRACE_ATTR(AttrNetPeerPort), port}},
+        {{SemanticConventions::kRpcSystem, "grpc"},
+                     {SemanticConventions::kRpcService, "grpc-example.GreetService"},
+                     {SemanticConventions::kRpcMethod, "Greet"},
+                     {SemanticConventions::kNetworkPeerAddress, ip},
+                     {SemanticConventions::kNetworkPeerPort, port}},
         options);
 
     auto scope = get_tracer("grpc-client")->WithActiveSpan(span);
@@ -66,16 +69,16 @@ public:
     if (status.ok())
     {
       span->SetStatus(StatusCode::kOk);
-      span->SetAttribute(OTEL_GET_TRACE_ATTR(AttrRpcGrpcStatusCode), status.error_code());
+      span->SetAttribute(SemanticConventions::kRpcGrpcStatusCode, status.error_code());
       // Make sure to end your spans!
       span->End();
       return response.response();
     }
     else
     {
-      std::cout << status.error_code() << ": " << status.error_message() << std::endl;
+      std::cout << status.error_code() << ": " << status.error_message() << '\n';
       span->SetStatus(StatusCode::kError);
-      span->SetAttribute(OTEL_GET_TRACE_ATTR(AttrRpcGrpcStatusCode), status.error_code());
+      span->SetAttribute(SemanticConventions::kRpcGrpcStatusCode, status.error_code());
       // Make sure to end your spans!
       span->End();
       return "RPC failed";
@@ -91,13 +94,13 @@ void RunClient(uint16_t port)
   GreeterClient greeter(
       grpc::CreateChannel("0.0.0.0:" + std::to_string(port), grpc::InsecureChannelCredentials()));
   std::string response = greeter.Greet("0.0.0.0", port);
-  std::cout << "grpc_server says: " << response << std::endl;
+  std::cout << "grpc_server says: " << response << '\n';
 }
 }  // namespace
 
 int main(int argc, char **argv)
 {
-  initTracer();
+  InitTracer();
   // set global propagator
   context::propagation::GlobalTextMapPropagator::SetGlobalPropagator(
       opentelemetry::nostd::shared_ptr<context::propagation::TextMapPropagator>(
@@ -113,5 +116,6 @@ int main(int argc, char **argv)
     port = default_port;
   }
   RunClient(port);
+  CleanupTracer();
   return 0;
 }

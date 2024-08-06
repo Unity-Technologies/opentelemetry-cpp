@@ -3,6 +3,10 @@
 
 #pragma once
 
+#ifdef OPENTELEMETRY_NO_DEPRECATED_CODE
+#  error "header <opentelemetry/trace/propagation/jaeger.h> is deprecated."
+#endif
+
 #include "detail/hex.h"
 #include "detail/string.h"
 #include "opentelemetry/context/propagation/text_map_propagator.h"
@@ -17,7 +21,7 @@ namespace propagation
 
 static const nostd::string_view kJaegerTraceHeader = "uber-trace-id";
 
-class JaegerPropagator : public context::propagation::TextMapPropagator
+class OPENTELEMETRY_DEPRECATED JaegerPropagator : public context::propagation::TextMapPropagator
 {
 public:
   void Inject(context::propagation::TextMapCarrier &carrier,
@@ -53,7 +57,14 @@ public:
   {
     SpanContext span_context = ExtractImpl(carrier);
     nostd::shared_ptr<Span> sp{new DefaultSpan(span_context)};
-    return trace::SetSpan(context, sp);
+    if (span_context.IsValid())
+    {
+      return trace::SetSpan(context, sp);
+    }
+    else
+    {
+      return context;
+    }
   }
 
   bool Fields(nostd::function_ref<bool(nostd::string_view)> callback) const noexcept override

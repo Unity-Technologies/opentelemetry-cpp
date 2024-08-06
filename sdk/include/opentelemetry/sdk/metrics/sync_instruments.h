@@ -2,13 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
-#ifndef ENABLE_METRICS_PREVIEW
-#  include "opentelemetry/common/key_value_iterable.h"
-#  include "opentelemetry/metrics/sync_instruments.h"
-#  include "opentelemetry/nostd/string_view.h"
-#  include "opentelemetry/sdk/metrics/instruments.h"
 
-#  include "opentelemetry/sdk/instrumentationlibrary/instrumentation_library.h"
+#include <stdint.h>
+#include <memory>
+#include <utility>
+
+#include "opentelemetry/common/key_value_iterable.h"
+#include "opentelemetry/context/context.h"
+#include "opentelemetry/metrics/sync_instruments.h"
+#include "opentelemetry/sdk/metrics/instruments.h"
+#include "opentelemetry/sdk/metrics/state/metric_storage.h"
+#include "opentelemetry/sdk_config.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
@@ -16,43 +21,43 @@ namespace sdk
 namespace metrics
 {
 
-// forward declaration
-class WritableMetricStorage;
-
 class Synchronous
 {
 public:
   Synchronous(InstrumentDescriptor instrument_descriptor,
-              std::unique_ptr<WritableMetricStorage> storage)
+              std::unique_ptr<SyncWritableMetricStorage> storage)
       : instrument_descriptor_(instrument_descriptor), storage_(std::move(storage))
   {}
 
 protected:
   InstrumentDescriptor instrument_descriptor_;
-  std::unique_ptr<WritableMetricStorage> storage_;
+  std::unique_ptr<SyncWritableMetricStorage> storage_;
 };
 
-class LongCounter : public Synchronous, public opentelemetry::metrics::Counter<long>
+class LongCounter : public Synchronous, public opentelemetry::metrics::Counter<uint64_t>
 {
 public:
-  LongCounter(InstrumentDescriptor instrument_descriptor,
-              std::unique_ptr<WritableMetricStorage> storage);
+  LongCounter(const InstrumentDescriptor &instrument_descriptor,
+              std::unique_ptr<SyncWritableMetricStorage> storage);
 
-  void Add(long value, const opentelemetry::common::KeyValueIterable &attributes) noexcept override;
-  void Add(long value,
+  void Add(uint64_t value,
+           const opentelemetry::common::KeyValueIterable &attributes) noexcept override;
+
+  void Add(uint64_t value,
            const opentelemetry::common::KeyValueIterable &attributes,
            const opentelemetry::context::Context &context) noexcept override;
 
-  void Add(long value) noexcept override;
-  void Add(long value, const opentelemetry::context::Context &context) noexcept override;
+  void Add(uint64_t value) noexcept override;
+
+  void Add(uint64_t value, const opentelemetry::context::Context &context) noexcept override;
 };
 
 class DoubleCounter : public Synchronous, public opentelemetry::metrics::Counter<double>
 {
 
 public:
-  DoubleCounter(InstrumentDescriptor instrument_descriptor,
-                std::unique_ptr<WritableMetricStorage> storage);
+  DoubleCounter(const InstrumentDescriptor &instrument_descriptor,
+                std::unique_ptr<SyncWritableMetricStorage> storage);
 
   void Add(double value,
            const opentelemetry::common::KeyValueIterable &attributes) noexcept override;
@@ -64,26 +69,27 @@ public:
   void Add(double value, const opentelemetry::context::Context &context) noexcept override;
 };
 
-class LongUpDownCounter : public Synchronous, public opentelemetry::metrics::UpDownCounter<long>
+class LongUpDownCounter : public Synchronous, public opentelemetry::metrics::UpDownCounter<int64_t>
 {
 public:
-  LongUpDownCounter(InstrumentDescriptor instrument_descriptor,
-                    std::unique_ptr<WritableMetricStorage> storage);
+  LongUpDownCounter(const InstrumentDescriptor &instrument_descriptor,
+                    std::unique_ptr<SyncWritableMetricStorage> storage);
 
-  void Add(long value, const opentelemetry::common::KeyValueIterable &attributes) noexcept override;
-  void Add(long value,
+  void Add(int64_t value,
+           const opentelemetry::common::KeyValueIterable &attributes) noexcept override;
+  void Add(int64_t value,
            const opentelemetry::common::KeyValueIterable &attributes,
            const opentelemetry::context::Context &context) noexcept override;
 
-  void Add(long value) noexcept override;
-  void Add(long value, const opentelemetry::context::Context &context) noexcept override;
+  void Add(int64_t value) noexcept override;
+  void Add(int64_t value, const opentelemetry::context::Context &context) noexcept override;
 };
 
 class DoubleUpDownCounter : public Synchronous, public opentelemetry::metrics::UpDownCounter<double>
 {
 public:
-  DoubleUpDownCounter(InstrumentDescriptor instrument_descriptor,
-                      std::unique_ptr<WritableMetricStorage> storage);
+  DoubleUpDownCounter(const InstrumentDescriptor &instrument_descriptor,
+                      std::unique_ptr<SyncWritableMetricStorage> storage);
 
   void Add(double value,
            const opentelemetry::common::KeyValueIterable &attributes) noexcept override;
@@ -95,24 +101,38 @@ public:
   void Add(double value, const opentelemetry::context::Context &context) noexcept override;
 };
 
-class LongHistogram : public Synchronous, public opentelemetry::metrics::Histogram<long>
+class LongHistogram : public Synchronous, public opentelemetry::metrics::Histogram<uint64_t>
 {
 public:
-  LongHistogram(InstrumentDescriptor instrument_descriptor,
-                std::unique_ptr<WritableMetricStorage> storage);
+  LongHistogram(const InstrumentDescriptor &instrument_descriptor,
+                std::unique_ptr<SyncWritableMetricStorage> storage);
 
-  void Record(long value,
+#if OPENTELEMETRY_ABI_VERSION_NO >= 2
+  void Record(uint64_t value,
+              const opentelemetry::common::KeyValueIterable &attributes) noexcept override;
+
+  void Record(uint64_t value) noexcept override;
+#endif
+
+  void Record(uint64_t value,
               const opentelemetry::common::KeyValueIterable &attributes,
               const opentelemetry::context::Context &context) noexcept override;
 
-  void Record(long value, const opentelemetry::context::Context &context) noexcept override;
+  void Record(uint64_t value, const opentelemetry::context::Context &context) noexcept override;
 };
 
 class DoubleHistogram : public Synchronous, public opentelemetry::metrics::Histogram<double>
 {
 public:
-  DoubleHistogram(InstrumentDescriptor instrument_descriptor,
-                  std::unique_ptr<WritableMetricStorage> storage);
+  DoubleHistogram(const InstrumentDescriptor &instrument_descriptor,
+                  std::unique_ptr<SyncWritableMetricStorage> storage);
+
+#if OPENTELEMETRY_ABI_VERSION_NO >= 2
+  void Record(double value,
+              const opentelemetry::common::KeyValueIterable &attributes) noexcept override;
+
+  void Record(double value) noexcept override;
+#endif
 
   void Record(double value,
               const opentelemetry::common::KeyValueIterable &attributes,
@@ -124,4 +144,3 @@ public:
 }  // namespace metrics
 }  // namespace sdk
 OPENTELEMETRY_END_NAMESPACE
-#endif

@@ -3,11 +3,11 @@
 
 #pragma once
 
+#include <atomic>
 #include <chrono>
 
 #include "opentelemetry/exporters/otlp/protobuf_include_prefix.h"
 
-#include "opentelemetry/common/spin_lock_mutex.h"
 #include "opentelemetry/proto/collector/trace/v1/trace_service.grpc.pb.h"
 
 #include "opentelemetry/exporters/otlp/protobuf_include_suffix.h"
@@ -22,6 +22,8 @@ namespace exporter
 {
 namespace otlp
 {
+
+class OtlpGrpcClient;
 
 /**
  * The OTLP exporter exports span data in OpenTelemetry Protocol (OTLP) format.
@@ -53,20 +55,33 @@ public:
       const nostd::span<std::unique_ptr<sdk::trace::Recordable>> &spans) noexcept override;
 
   /**
+   * Force flush the exporter.
+   * @param timeout an option timeout, default to max.
+   * @return return true when all data are exported, and false when timeout
+   */
+  bool ForceFlush(
+      std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept override;
+
+  /**
    * Shut down the exporter.
    * @param timeout an optional timeout, the default timeout of 0 means that no
    * timeout is applied.
    * @return return the status of this operation
    */
   bool Shutdown(
-      std::chrono::microseconds timeout = std::chrono::microseconds::max()) noexcept override;
+      std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept override;
 
 private:
   // The configuration options associated with this exporter.
   const OtlpGrpcExporterOptions options_;
 
+#ifdef ENABLE_ASYNC_EXPORT
+  std::shared_ptr<OtlpGrpcClient> client_;
+#endif
+
   // For testing
   friend class OtlpGrpcExporterTestPeer;
+  friend class OtlpGrpcLogRecordExporterTestPeer;
 
   // Store service stub internally. Useful for testing.
   std::unique_ptr<proto::collector::trace::v1::TraceService::StubInterface> trace_service_stub_;
@@ -77,8 +92,7 @@ private:
    * @param stub the service stub to be used for exporting
    */
   OtlpGrpcExporter(std::unique_ptr<proto::collector::trace::v1::TraceService::StubInterface> stub);
-  bool is_shutdown_ = false;
-  mutable opentelemetry::common::SpinLockMutex lock_;
+  std::atomic<bool> is_shutdown_{false};
   bool isShutdown() const noexcept;
 };
 }  // namespace otlp

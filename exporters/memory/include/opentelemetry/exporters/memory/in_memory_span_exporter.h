@@ -2,11 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
+
+#include <atomic>
 #include <mutex>
-#include "opentelemetry/common/spin_lock_mutex.h"
+
 #include "opentelemetry/exporters/memory/in_memory_span_data.h"
 #include "opentelemetry/sdk/trace/exporter.h"
+#include "opentelemetry/sdk/trace/span_data.h"
 #include "opentelemetry/sdk_config.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace exporter
@@ -26,7 +30,7 @@ public:
    * @param buffer_size an optional value that sets the size of the InMemorySpanData
    */
   InMemorySpanExporter(size_t buffer_size = MAX_BUFFER_SIZE)
-      : data_(new opentelemetry::exporter::memory::InMemorySpanData(buffer_size))
+      : data_(new InMemorySpanData(buffer_size))
   {}
 
   /**
@@ -69,31 +73,21 @@ public:
    * note: passing custom timeout values is not currently supported for this exporter
    * @return Returns the status of the operation
    */
-  bool Shutdown(
-      std::chrono::microseconds timeout = std::chrono::microseconds::max()) noexcept override
+  bool Shutdown(std::chrono::microseconds /* timeout */) noexcept override
   {
-    const std::lock_guard<opentelemetry::common::SpinLockMutex> locked(lock_);
     is_shutdown_ = true;
     return true;
-  };
+  }
 
   /**
    * @return Returns a shared pointer to this exporters InMemorySpanData
    */
-  std::shared_ptr<opentelemetry::exporter::memory::InMemorySpanData> GetData() noexcept
-  {
-    return data_;
-  }
+  std::shared_ptr<InMemorySpanData> GetData() noexcept { return data_; }
 
 private:
-  std::shared_ptr<opentelemetry::exporter::memory::InMemorySpanData> data_;
-  bool is_shutdown_ = false;
-  mutable opentelemetry::common::SpinLockMutex lock_;
-  const bool isShutdown() const noexcept
-  {
-    const std::lock_guard<opentelemetry::common::SpinLockMutex> locked(lock_);
-    return is_shutdown_;
-  }
+  std::shared_ptr<InMemorySpanData> data_;
+  std::atomic<bool> is_shutdown_{false};
+  bool isShutdown() const noexcept { return is_shutdown_; }
 };
 }  // namespace memory
 }  // namespace exporter

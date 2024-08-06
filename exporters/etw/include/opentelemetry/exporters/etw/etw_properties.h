@@ -7,6 +7,7 @@
 #include "opentelemetry/common/key_value_iterable_view.h"
 
 #include <opentelemetry/nostd/span.h>
+#include <opentelemetry/nostd/type_traits.h>
 #include <map>
 #include <string>
 #include <vector>
@@ -106,7 +107,7 @@ class PropertyValue : public PropertyVariant
    * @param vec Vector of integral type primitives to convert to span.
    * @return Span of integral type primitives.
    */
-  template <typename T, std::enable_if_t<std::is_integral<T>::value, bool> = true>
+  template <typename T, nostd::enable_if_t<std::is_integral<T>::value, bool> = true>
   static nostd::span<const T> to_span(const std::vector<T> &vec)
   {
     nostd::span<const T> result(vec.data(), vec.size());
@@ -119,7 +120,7 @@ class PropertyValue : public PropertyVariant
    * @param vec Vector of float type primitives to convert to span.
    * @return Span of float type primitives.
    */
-  template <typename T, std::enable_if_t<std::is_floating_point<T>::value, bool> = true>
+  template <typename T, nostd::enable_if_t<std::is_floating_point<T>::value, bool> = true>
   static nostd::span<const T> to_span(const std::vector<T> &vec)
   {
     nostd::span<const T> result(vec.data(), vec.size());
@@ -139,7 +140,7 @@ public:
    * @param v
    * @return
    */
-  template <typename TInteger, std::enable_if_t<std::is_integral<TInteger>::value, bool> = true>
+  template <typename TInteger, nostd::enable_if_t<std::is_integral<TInteger>::value, bool> = true>
   PropertyValue(TInteger number) : PropertyVariant(number)
   {}
 
@@ -148,7 +149,7 @@ public:
    * @param v
    * @return
    */
-  template <typename TFloat, std::enable_if_t<std::is_floating_point<TFloat>::value, bool> = true>
+  template <typename TFloat, nostd::enable_if_t<std::is_floating_point<TFloat>::value, bool> = true>
   PropertyValue(TFloat number) : PropertyVariant(double(number))
   {}
 
@@ -192,69 +193,70 @@ public:
   {}
 
   /**
-   * @brief Convert owning PropertyValue to non-owning common::AttributeValue
+   * @brief Convert non-owning common::AttributeValue to owning PropertyValue.
    * @return
    */
-  PropertyValue &FromAttributeValue(const common::AttributeValue &v)
+  PropertyValue &FromAttributeValue(const opentelemetry::common::AttributeValue &v)
   {
     switch (v.index())
     {
-      case common::AttributeType::kTypeBool:
+      case opentelemetry::common::AttributeType::kTypeBool:
         PropertyVariant::operator=(nostd::get<bool>(v));
         break;
-      case common::AttributeType::kTypeInt:
+      case opentelemetry::common::AttributeType::kTypeInt:
         PropertyVariant::operator=(nostd::get<int32_t>(v));
         break;
-      case common::AttributeType::kTypeInt64:
+      case opentelemetry::common::AttributeType::kTypeInt64:
         PropertyVariant::operator=(nostd::get<int64_t>(v));
         break;
-      case common::AttributeType::kTypeUInt:
+      case opentelemetry::common::AttributeType::kTypeUInt:
         PropertyVariant::operator=(nostd::get<uint32_t>(v));
         break;
-      case common::AttributeType::kTypeUInt64:
+      case opentelemetry::common::AttributeType::kTypeUInt64:
         PropertyVariant::operator=(nostd::get<uint64_t>(v));
         break;
-      case common::AttributeType::kTypeDouble:
+      case opentelemetry::common::AttributeType::kTypeDouble:
         PropertyVariant::operator=(nostd::get<double>(v));
         break;
-      case common::AttributeType::kTypeCString: {
+      case opentelemetry::common::AttributeType::kTypeCString: {
         PropertyVariant::operator=(nostd::get<const char *>(v));
         break;
       }
-      case common::AttributeType::kTypeString: {
-        PropertyVariant::operator=(nostd::string_view(nostd::get<nostd::string_view>(v)).data());
+      case opentelemetry::common::AttributeType::kTypeString: {
+        PropertyVariant::operator=(
+            std::string{nostd::string_view(nostd::get<nostd::string_view>(v)).data()});
         break;
       }
 
-      case common::AttributeType::kTypeSpanByte:
+      case opentelemetry::common::AttributeType::kTypeSpanByte:
         PropertyVariant::operator=(to_vector(nostd::get<nostd::span<const uint8_t>>(v)));
         break;
 
-      case common::AttributeType::kTypeSpanBool:
+      case opentelemetry::common::AttributeType::kTypeSpanBool:
         PropertyVariant::operator=(to_vector(nostd::get<nostd::span<const bool>>(v)));
         break;
 
-      case common::AttributeType::kTypeSpanInt:
+      case opentelemetry::common::AttributeType::kTypeSpanInt:
         PropertyVariant::operator=(to_vector(nostd::get<nostd::span<const int32_t>>(v)));
         break;
 
-      case common::AttributeType::kTypeSpanInt64:
+      case opentelemetry::common::AttributeType::kTypeSpanInt64:
         PropertyVariant::operator=(to_vector(nostd::get<nostd::span<const int64_t>>(v)));
         break;
 
-      case common::AttributeType::kTypeSpanUInt:
+      case opentelemetry::common::AttributeType::kTypeSpanUInt:
         PropertyVariant::operator=(to_vector(nostd::get<nostd::span<const uint32_t>>(v)));
         break;
 
-      case common::AttributeType::kTypeSpanUInt64:
+      case opentelemetry::common::AttributeType::kTypeSpanUInt64:
         PropertyVariant::operator=(to_vector(nostd::get<nostd::span<const uint64_t>>(v)));
         break;
 
-      case common::AttributeType::kTypeSpanDouble:
+      case opentelemetry::common::AttributeType::kTypeSpanDouble:
         PropertyVariant::operator=(to_vector(nostd::get<nostd::span<const double>>(v)));
         break;
 
-      case common::AttributeType::kTypeSpanString:
+      case opentelemetry::common::AttributeType::kTypeSpanString:
         PropertyVariant::operator=(to_vector(nostd::get<nostd::span<const nostd::string_view>>(v)));
         break;
 
@@ -268,9 +270,9 @@ public:
    * @brief Convert owning PropertyValue to non-owning common::AttributeValue
    * @param other
    */
-  common::AttributeValue ToAttributeValue() const
+  opentelemetry::common::AttributeValue ToAttributeValue() const
   {
-    common::AttributeValue value;
+    opentelemetry::common::AttributeValue value;
 
     switch (this->index())
     {
@@ -352,7 +354,7 @@ using PropertyValueMap = std::map<std::string, PropertyValue>;
 /**
  * @brief Map of PropertyValue with common::KeyValueIterable interface.
  */
-class Properties : public common::KeyValueIterable, public PropertyValueMap
+class Properties : public opentelemetry::common::KeyValueIterable, public PropertyValueMap
 {
 
   /**
@@ -403,19 +405,20 @@ public:
    * container.
    *
    */
-  Properties(const common::KeyValueIterable &other) { (*this) = other; }
+  Properties(const opentelemetry::common::KeyValueIterable &other) { (*this) = other; }
 
   /**
    * @brief PropertyValueMap assignment operator.
    */
-  Properties &operator=(const common::KeyValueIterable &other)
+  Properties &operator=(const opentelemetry::common::KeyValueIterable &other)
   {
     clear();
-    other.ForEachKeyValue([&](nostd::string_view key, common::AttributeValue value) noexcept {
-      std::string k(key.data(), key.length());
-      (*this)[k].FromAttributeValue(value);
-      return true;
-    });
+    other.ForEachKeyValue(
+        [&](nostd::string_view key, opentelemetry::common::AttributeValue value) noexcept {
+          std::string k(key.data(), key.length());
+          (*this)[k].FromAttributeValue(value);
+          return true;
+        });
     return (*this);
   }
 
@@ -430,12 +433,13 @@ public:
    * the iteration is aborted.
    * @return true if every key-value pair was iterated over
    */
-  bool ForEachKeyValue(nostd::function_ref<bool(nostd::string_view, common::AttributeValue)>
-                           callback) const noexcept override
+  bool ForEachKeyValue(
+      nostd::function_ref<bool(nostd::string_view, opentelemetry::common::AttributeValue)> callback)
+      const noexcept override
   {
     for (const auto &kv : (*this))
     {
-      const common::AttributeValue &value = kv.second.ToAttributeValue();
+      const opentelemetry::common::AttributeValue &value = kv.second.ToAttributeValue();
       if (!callback(nostd::string_view{kv.first}, value))
       {
         return false;

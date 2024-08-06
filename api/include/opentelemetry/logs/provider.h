@@ -2,22 +2,26 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
-#ifdef ENABLE_LOGS_PREVIEW
 
-#  include <mutex>
+#include <mutex>
 
-#  include "opentelemetry/common/spin_lock_mutex.h"
-#  include "opentelemetry/logs/logger_provider.h"
-#  include "opentelemetry/logs/noop.h"
-#  include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/common/macros.h"
+#include "opentelemetry/common/spin_lock_mutex.h"
+#include "opentelemetry/logs/noop.h"
+#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace logs
 {
+
+class EventLoggerProvider;
+class LoggerProvider;
+
 /**
  * Stores the singleton global LoggerProvider.
  */
-class Provider
+class OPENTELEMETRY_EXPORT Provider
 {
 public:
   /**
@@ -41,14 +45,42 @@ public:
     GetProvider() = tp;
   }
 
+  /**
+   * Returns the singleton EventLoggerProvider.
+   *
+   * By default, a no-op EventLoggerProvider is returned. This will never return a
+   * nullptr EventLoggerProvider.
+   */
+  static nostd::shared_ptr<EventLoggerProvider> GetEventLoggerProvider() noexcept
+  {
+    std::lock_guard<common::SpinLockMutex> guard(GetLock());
+    return nostd::shared_ptr<EventLoggerProvider>(GetEventProvider());
+  }
+
+  /**
+   * Changes the singleton EventLoggerProvider.
+   */
+  static void SetEventLoggerProvider(nostd::shared_ptr<EventLoggerProvider> tp) noexcept
+  {
+    std::lock_guard<common::SpinLockMutex> guard(GetLock());
+    GetEventProvider() = tp;
+  }
+
 private:
-  static nostd::shared_ptr<LoggerProvider> &GetProvider() noexcept
+  OPENTELEMETRY_API_SINGLETON static nostd::shared_ptr<LoggerProvider> &GetProvider() noexcept
   {
     static nostd::shared_ptr<LoggerProvider> provider(new NoopLoggerProvider);
     return provider;
   }
 
-  static common::SpinLockMutex &GetLock() noexcept
+  OPENTELEMETRY_API_SINGLETON static nostd::shared_ptr<EventLoggerProvider> &
+  GetEventProvider() noexcept
+  {
+    static nostd::shared_ptr<EventLoggerProvider> provider(new NoopEventLoggerProvider);
+    return provider;
+  }
+
+  OPENTELEMETRY_API_SINGLETON static common::SpinLockMutex &GetLock() noexcept
   {
     static common::SpinLockMutex lock;
     return lock;
@@ -57,4 +89,3 @@ private:
 
 }  // namespace logs
 OPENTELEMETRY_END_NAMESPACE
-#endif

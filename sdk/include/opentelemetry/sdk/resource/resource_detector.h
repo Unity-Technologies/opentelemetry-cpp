@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "opentelemetry/nostd/unique_ptr.h"
+#include "opentelemetry/sdk/resource/resource.h"
 #include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
@@ -12,15 +12,15 @@ namespace sdk
 namespace resource
 {
 
-class Resource;
-
 /**
  * Interface for a Resource Detector
  */
 class ResourceDetector
 {
 public:
-  virtual Resource Detect() = 0;
+  ResourceDetector()          = default;
+  virtual ~ResourceDetector() = default;
+  virtual Resource Detect()   = 0;
 };
 
 /**

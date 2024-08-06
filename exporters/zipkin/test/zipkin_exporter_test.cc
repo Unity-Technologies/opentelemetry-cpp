@@ -1,13 +1,13 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef HAVE_CPP_STDLIB
+#ifndef OPENTELEMETRY_STL_VERSION
 
 #  include "opentelemetry/exporters/zipkin/zipkin_exporter.h"
-#  include <string>
 #  include "opentelemetry/ext/http/client/curl/http_client_curl.h"
 #  include "opentelemetry/ext/http/server/http_server.h"
 #  include "opentelemetry/sdk/trace/batch_span_processor.h"
+#  include "opentelemetry/sdk/trace/batch_span_processor_options.h"
 #  include "opentelemetry/sdk/trace/tracer_provider.h"
 #  include "opentelemetry/trace/provider.h"
 
@@ -15,6 +15,9 @@
 #  include "gmock/gmock.h"
 
 #  include "nlohmann/json.hpp"
+
+#  include <string>
+#  include <utility>
 
 #  if defined(_MSC_VER)
 #    include "opentelemetry/sdk/common/env_variables.h"
@@ -45,7 +48,7 @@ public:
   std::unique_ptr<sdk::trace::SpanExporter> GetExporter(
       std::shared_ptr<opentelemetry::ext::http::client::HttpClientSync> http_client)
   {
-    return std::unique_ptr<sdk::trace::SpanExporter>(new ZipkinExporter(http_client));
+    return std::unique_ptr<sdk::trace::SpanExporter>(new ZipkinExporter(std::move(http_client)));
   }
 
   // Get the options associated with the given exporter.
@@ -61,12 +64,18 @@ public:
   MOCK_METHOD(ext::http::client::Result,
               Post,
               (const nostd::string_view &,
+               const ext::http::client::HttpSslOptions &,
                const ext::http::client::Body &,
-               const ext::http::client::Headers &),
+               const ext::http::client::Headers &,
+               const ext::http::client::Compression &),
               (noexcept, override));
+
   MOCK_METHOD(ext::http::client::Result,
               Get,
-              (const nostd::string_view &, const ext::http::client::Headers &),
+              (const nostd::string_view &,
+               const ext::http::client::HttpSslOptions &,
+               const ext::http::client::Headers &,
+               const ext::http::client::Compression &),
               (noexcept, override));
 };
 
@@ -146,11 +155,13 @@ TEST_F(ZipkinExporterTestPeer, ExportJsonIntegrationTest)
   report_trace_id.assign(trace_id_hex, sizeof(trace_id_hex));
 
   auto expected_url = nostd::string_view{"http://localhost:9411/api/v2/spans"};
-  EXPECT_CALL(*mock_http_client, Post(expected_url, IsValidMessage(report_trace_id), _))
+
+  EXPECT_CALL(*mock_http_client, Post(expected_url, _, IsValidMessage(report_trace_id), _, _))
+
       .Times(Exactly(1))
-      .WillOnce(Return(ByMove(std::move(ext::http::client::Result{
+      .WillOnce(Return(ByMove(ext::http::client::Result{
           std::unique_ptr<ext::http::client::Response>{new ext::http::client::curl::Response()},
-          ext::http::client::SessionState::Response}))));
+          ext::http::client::SessionState::Response})));
 
   child_span->End();
   parent_span->End();
@@ -168,13 +179,15 @@ TEST_F(ZipkinExporterTestPeer, ShutdownTest)
   auto recordable_2 = exporter->MakeRecordable();
   recordable_2->SetName("Test span 2");
 
-  // exporter shuold not be shutdown by default
+  // exporter should not be shutdown by default
   nostd::span<std::unique_ptr<sdk::trace::Recordable>> batch_1(&recordable_1, 1);
-  EXPECT_CALL(*mock_http_client, Post(_, _, _))
+
+  EXPECT_CALL(*mock_http_client, Post(_, _, _, _, _))
+
       .Times(Exactly(1))
-      .WillOnce(Return(ByMove(std::move(ext::http::client::Result{
+      .WillOnce(Return(ByMove(ext::http::client::Result{
           std::unique_ptr<ext::http::client::Response>{new ext::http::client::curl::Response()},
-          ext::http::client::SessionState::Response}))));
+          ext::http::client::SessionState::Response})));
   auto result = exporter->Export(batch_1);
   EXPECT_EQ(sdk_common::ExportResult::kSuccess, result);
 
@@ -212,4 +225,4 @@ TEST_F(ZipkinExporterTestPeer, ConfigFromEnv)
 }  // namespace zipkin
 }  // namespace exporter
 OPENTELEMETRY_END_NAMESPACE
-#endif  // HAVE_CPP_STDLIB
+#endif /* OPENTELEMETRY_STL_VERSION */

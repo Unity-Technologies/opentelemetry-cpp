@@ -40,7 +40,7 @@ const trace::SpanId kSpanId(std::array<const uint8_t, trace::SpanId::kSize>({0, 
                                                                              2}));
 const trace::SpanId kParentSpanId(std::array<const uint8_t, trace::SpanId::kSize>({0, 0, 0, 0, 0, 0,
                                                                                    0, 3}));
-const auto kTraceState = trace_api::TraceState::GetDefault() -> Set("key1", "value");
+const auto kTraceState = trace_api::TraceState::GetDefault()->Set("key1", "value");
 const trace_api::SpanContext kSpanContext{
     kTraceId, kSpanId, trace_api::TraceFlags{trace_api::TraceFlags::kIsSampled}, true, kTraceState};
 
@@ -49,6 +49,59 @@ const trace_api::SpanContext kSpanContext{
 // Create a fake service stub to avoid dependency on gmock
 class FakeServiceStub : public proto::collector::trace::v1::TraceService::StubInterface
 {
+public:
+#if defined(GRPC_CPP_VERSION_MAJOR) && \
+    (GRPC_CPP_VERSION_MAJOR * 1000 + GRPC_CPP_VERSION_MINOR) >= 1039
+  using async_interface_base =
+      proto::collector::trace::v1::TraceService::StubInterface::async_interface;
+#else
+  using async_interface_base =
+      proto::collector::trace::v1::TraceService::StubInterface::experimental_async_interface;
+#endif
+
+  FakeServiceStub() : async_interface_(this) {}
+
+  class async_interface : public async_interface_base
+  {
+  public:
+    async_interface(FakeServiceStub *owner) : stub_(owner) {}
+
+    virtual ~async_interface() {}
+
+    void Export(
+        ::grpc::ClientContext *context,
+        const ::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest *request,
+        ::opentelemetry::proto::collector::trace::v1::ExportTraceServiceResponse *response,
+        std::function<void(::grpc::Status)> callback) override
+    {
+      callback(stub_->Export(context, *request, response));
+    }
+
+#if defined(GRPC_CPP_VERSION_MAJOR) &&                                      \
+        (GRPC_CPP_VERSION_MAJOR * 1000 + GRPC_CPP_VERSION_MINOR) >= 1039 || \
+    defined(GRPC_CALLBACK_API_NONEXPERIMENTAL)
+    void Export(
+        ::grpc::ClientContext * /*context*/,
+        const ::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest * /*request*/,
+        ::opentelemetry::proto::collector::trace::v1::ExportTraceServiceResponse * /*response*/,
+        ::grpc::ClientUnaryReactor * /*reactor*/) override
+    {}
+#else
+    void Export(
+        ::grpc::ClientContext * /*context*/,
+        const ::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest * /*request*/,
+        ::opentelemetry::proto::collector::trace::v1::ExportTraceServiceResponse * /*response*/,
+        ::grpc::experimental::ClientUnaryReactor * /*reactor*/)
+    {}
+#endif
+
+  private:
+    FakeServiceStub *stub_;
+  };
+
+  async_interface_base *async() { return &async_interface_; }
+  async_interface_base *experimental_async() { return &async_interface_; }
+
   grpc::Status Export(grpc::ClientContext *,
                       const proto::collector::trace::v1::ExportTraceServiceRequest &,
                       proto::collector::trace::v1::ExportTraceServiceResponse *) override
@@ -56,21 +109,26 @@ class FakeServiceStub : public proto::collector::trace::v1::TraceService::StubIn
     return grpc::Status::OK;
   }
 
-  grpc::ClientAsyncResponseReaderInterface<proto::collector::trace::v1::ExportTraceServiceResponse>
-      *AsyncExportRaw(grpc::ClientContext *,
-                      const proto::collector::trace::v1::ExportTraceServiceRequest &,
-                      grpc::CompletionQueue *) override
+  grpc::ClientAsyncResponseReaderInterface<
+      proto::collector::trace::v1::ExportTraceServiceResponse> *
+  AsyncExportRaw(grpc::ClientContext *,
+                 const proto::collector::trace::v1::ExportTraceServiceRequest &,
+                 grpc::CompletionQueue *) override
   {
     return nullptr;
   }
 
-  grpc::ClientAsyncResponseReaderInterface<proto::collector::trace::v1::ExportTraceServiceResponse>
-      *PrepareAsyncExportRaw(grpc::ClientContext *,
-                             const proto::collector::trace::v1::ExportTraceServiceRequest &,
-                             grpc::CompletionQueue *) override
+  grpc::ClientAsyncResponseReaderInterface<
+      proto::collector::trace::v1::ExportTraceServiceResponse> *
+  PrepareAsyncExportRaw(grpc::ClientContext *,
+                        const proto::collector::trace::v1::ExportTraceServiceRequest &,
+                        grpc::CompletionQueue *) override
   {
     return nullptr;
   }
+
+private:
+  async_interface async_interface_;
 };
 
 // OtlpGrpcExporterTestPeer is a friend class of OtlpGrpcExporter
@@ -187,6 +245,10 @@ BENCHMARK(BM_OtlpExporterDenseSpans);
 }  // namespace exporter
 OPENTELEMETRY_END_NAMESPACE
 
+#ifdef NDEBUG
+// disabled as valgrind reports a memroy leak at absl::lts_20220623::random_internal::(anonymous
+// namespace)::PoolAlignedAlloc()
+// see PR #1737
 namespace
 {
 opentelemetry::exporter::otlp::OtlpGrpcExporterOptions opts;
@@ -212,5 +274,6 @@ void BM_otlp_grpc_with_collector(benchmark::State &state)
 }
 BENCHMARK(BM_otlp_grpc_with_collector);
 }  // namespace
+#endif
 
 BENCHMARK_MAIN();

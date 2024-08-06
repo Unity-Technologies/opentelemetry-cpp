@@ -1,8 +1,27 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+#include <algorithm>
+#include <chrono>
+#include <mutex>
+#include <utility>
+#include <vector>
+
+#include "opentelemetry/common/key_value_iterable.h"
+#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/sdk/common/global_log_handler.h"
+#include "opentelemetry/sdk/instrumentationscope/instrumentation_scope.h"
+#include "opentelemetry/sdk/resource/resource.h"
+#include "opentelemetry/sdk/trace/id_generator.h"
+#include "opentelemetry/sdk/trace/processor.h"
+#include "opentelemetry/sdk/trace/sampler.h"
+#include "opentelemetry/sdk/trace/tracer.h"
+#include "opentelemetry/sdk/trace/tracer_context.h"
 #include "opentelemetry/sdk/trace/tracer_provider.h"
-#include "opentelemetry/sdk_config.h"
+#include "opentelemetry/trace/span_id.h"
+#include "opentelemetry/trace/tracer.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
@@ -12,12 +31,14 @@ namespace trace
 namespace resource  = opentelemetry::sdk::resource;
 namespace trace_api = opentelemetry::trace;
 
-TracerProvider::TracerProvider(std::shared_ptr<sdk::trace::TracerContext> context) noexcept
-    : context_{context}
-{}
+TracerProvider::TracerProvider(std::unique_ptr<TracerContext> context) noexcept
+    : context_(std::move(context))
+{
+  OTEL_INTERNAL_LOG_DEBUG("[TracerProvider] TracerProvider created.");
+}
 
 TracerProvider::TracerProvider(std::unique_ptr<SpanProcessor> processor,
-                               resource::Resource resource,
+                               const resource::Resource &resource,
                                std::unique_ptr<Sampler> sampler,
                                std::unique_ptr<IdGenerator> id_generator) noexcept
 {
@@ -28,7 +49,7 @@ TracerProvider::TracerProvider(std::unique_ptr<SpanProcessor> processor,
 }
 
 TracerProvider::TracerProvider(std::vector<std::unique_ptr<SpanProcessor>> &&processors,
-                               resource::Resource resource,
+                               const resource::Resource &resource,
                                std::unique_ptr<Sampler> sampler,
                                std::unique_ptr<IdGenerator> id_generator) noexcept
 {
@@ -40,24 +61,36 @@ TracerProvider::~TracerProvider()
 {
   // Tracer hold the shared pointer to the context. So we can not use destructor of TracerContext to
   // Shutdown and flush all pending recordables when we have more than one tracers.These recordables
-  // may use the raw pointer of instrumentation_library_ in Tracer
+  // may use the raw pointer of instrumentation_scope_ in Tracer
   if (context_)
   {
     context_->Shutdown();
   }
 }
 
+#if OPENTELEMETRY_ABI_VERSION_NO >= 2
 nostd::shared_ptr<trace_api::Tracer> TracerProvider::GetTracer(
-    nostd::string_view library_name,
-    nostd::string_view library_version,
+    nostd::string_view name,
+    nostd::string_view version,
+    nostd::string_view schema_url,
+    const opentelemetry::common::KeyValueIterable *attributes) noexcept
+#else
+nostd::shared_ptr<trace_api::Tracer> TracerProvider::GetTracer(
+    nostd::string_view name,
+    nostd::string_view version,
     nostd::string_view schema_url) noexcept
+#endif
 {
-  if (library_name.data() == nullptr)
+#if OPENTELEMETRY_ABI_VERSION_NO < 2
+  const opentelemetry::common::KeyValueIterable *attributes = nullptr;
+#endif
+
+  if (name.data() == nullptr)
   {
     OTEL_INTERNAL_LOG_ERROR("[TracerProvider::GetTracer] Library name is null.");
-    library_name = "";
+    name = "";
   }
-  else if (library_name == "")
+  else if (name == "")
   {
     OTEL_INTERNAL_LOG_ERROR("[TracerProvider::GetTracer] Library name is empty.");
   }
@@ -66,17 +99,20 @@ nostd::shared_ptr<trace_api::Tracer> TracerProvider::GetTracer(
 
   for (auto &tracer : tracers_)
   {
-    auto &tracer_lib = tracer->GetInstrumentationLibrary();
-    if (tracer_lib.equal(library_name, library_version, schema_url))
+    auto &tracer_scope = tracer->GetInstrumentationScope();
+    if (tracer_scope.equal(name, version, schema_url))
     {
       return nostd::shared_ptr<trace_api::Tracer>{tracer};
     }
   }
 
-  auto lib = InstrumentationLibrary::Create(library_name, library_version, schema_url);
-  tracers_.push_back(std::shared_ptr<opentelemetry::sdk::trace::Tracer>(
-      new sdk::trace::Tracer(context_, std::move(lib))));
-  return nostd::shared_ptr<trace_api::Tracer>{tracers_.back()};
+  instrumentationscope::InstrumentationScopeAttributes attrs_map(attributes);
+  auto scope =
+      instrumentationscope::InstrumentationScope::Create(name, version, schema_url, attrs_map);
+
+  auto tracer = std::shared_ptr<Tracer>(new Tracer(context_, std::move(scope)));
+  tracers_.push_back(tracer);
+  return nostd::shared_ptr<trace_api::Tracer>{tracer};
 }
 
 void TracerProvider::AddProcessor(std::unique_ptr<SpanProcessor> processor) noexcept

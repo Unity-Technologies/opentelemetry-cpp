@@ -6,14 +6,17 @@
 #include <memory>
 
 #include "opentelemetry/common/key_value_iterable.h"
-#include "opentelemetry/plugin/detail/dynamic_library_handle.h"
-#include "opentelemetry/plugin/detail/tracer_handle.h"
+#include "opentelemetry/plugin/detail/tracer_handle.h"  // IWYU pragma: export
+#include "opentelemetry/trace/span_context_kv_iterable.h"
 #include "opentelemetry/trace/tracer.h"
 #include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace plugin
 {
+
+class DynamicLibraryHandle;
+
 class Span final : public trace::Span
 {
 public:
@@ -35,11 +38,30 @@ public:
   }
 
   void AddEvent(nostd::string_view name,
+                const common::KeyValueIterable &attributes) noexcept override
+  {
+    span_->AddEvent(name, attributes);
+  }
+
+  void AddEvent(nostd::string_view name,
                 common::SystemTimestamp timestamp,
                 const common::KeyValueIterable &attributes) noexcept override
   {
     span_->AddEvent(name, timestamp, attributes);
   }
+
+#if OPENTELEMETRY_ABI_VERSION_NO >= 2
+  void AddLink(const trace::SpanContext &target,
+               const common::KeyValueIterable &attrs) noexcept override
+  {
+    span_->AddLink(target, attrs);
+  }
+
+  void AddLinks(const trace::SpanContextKeyValueIterable &links) noexcept override
+  {
+    span_->AddLinks(links);
+  }
+#endif
 
   void SetStatus(trace::StatusCode code, nostd::string_view description) noexcept override
   {
@@ -82,6 +104,8 @@ public:
     return nostd::shared_ptr<trace::Span>{new (std::nothrow) Span{this->shared_from_this(), span}};
   }
 
+#if OPENTELEMETRY_ABI_VERSION_NO == 1
+
   void ForceFlushWithMicroseconds(uint64_t timeout) noexcept override
   {
     tracer_handle_->tracer().ForceFlushWithMicroseconds(timeout);
@@ -91,6 +115,8 @@ public:
   {
     tracer_handle_->tracer().CloseWithMicroseconds(timeout);
   }
+
+#endif /* OPENTELEMETRY_ABI_VERSION_NO */
 
 private:
   // Note: The order is important here.

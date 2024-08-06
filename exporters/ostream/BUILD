@@ -1,12 +1,18 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
-    name = "ostream_log_exporter",
+    name = "ostream_log_record_exporter",
     srcs = [
-        "src/log_exporter.cc",
+        "src/log_record_exporter.cc",
+        "src/log_record_exporter_factory.cc",
     ],
     hdrs = [
-        "include/opentelemetry/exporters/ostream/log_exporter.h",
+        "include/opentelemetry/exporters/ostream/common_utils.h",
+        "include/opentelemetry/exporters/ostream/log_record_exporter.h",
+        "include/opentelemetry/exporters/ostream/log_record_exporter_factory.h",
     ],
     strip_include_prefix = "include",
     tags = ["ostream"],
@@ -23,23 +29,8 @@ cc_test(
         "test",
     ],
     deps = [
-        ":ostream_log_exporter",
+        ":ostream_log_record_exporter",
         "@com_google_googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "ostream_metrics_exporter_deprecated",
-    srcs = [
-        "src/metrics_exporter.cc",
-    ],
-    hdrs = [
-        "include/opentelemetry/exporters/ostream/metrics_exporter.h",
-    ],
-    strip_include_prefix = "include",
-    tags = ["ostream"],
-    deps = [
-        "//sdk/src/_metrics:metrics_deprecated",
     ],
 )
 
@@ -47,9 +38,12 @@ cc_library(
     name = "ostream_metric_exporter",
     srcs = [
         "src/metric_exporter.cc",
+        "src/metric_exporter_factory.cc",
     ],
     hdrs = [
+        "include/opentelemetry/exporters/ostream/common_utils.h",
         "include/opentelemetry/exporters/ostream/metric_exporter.h",
+        "include/opentelemetry/exporters/ostream/metric_exporter_factory.h",
     ],
     strip_include_prefix = "include",
     tags = [
@@ -74,26 +68,16 @@ cc_test(
     ],
 )
 
-cc_test(
-    name = "ostream_metrics_test_deprecated",
-    srcs = ["test/ostream_metrics_test.cc"],
-    tags = [
-        "ostream",
-        "test",
-    ],
-    deps = [
-        ":ostream_metrics_exporter_deprecated",
-        "@com_google_googletest//:gtest_main",
-    ],
-)
-
 cc_library(
     name = "ostream_span_exporter",
     srcs = [
         "src/span_exporter.cc",
+        "src/span_exporter_factory.cc",
     ],
     hdrs = [
+        "include/opentelemetry/exporters/ostream/common_utils.h",
         "include/opentelemetry/exporters/ostream/span_exporter.h",
+        "include/opentelemetry/exporters/ostream/span_exporter_factory.h",
     ],
     strip_include_prefix = "include",
     tags = ["ostream"],

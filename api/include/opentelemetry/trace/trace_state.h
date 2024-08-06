@@ -4,21 +4,19 @@
 #pragma once
 
 #include <cstdint>
-#include <cstring>
 #include <string>
 
-#include <regex>
-#if (__GNUC__ == 4 && (__GNUC_MINOR__ == 8 || __GNUC_MINOR__ == 9))
-#  define HAVE_WORKING_REGEX 0
-#else
-#  define HAVE_WORKING_REGEX 1
-#endif
-
 #include "opentelemetry/common/kv_properties.h"
+#include "opentelemetry/nostd/function_ref.h"
 #include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/nostd/span.h"
 #include "opentelemetry/nostd/string_view.h"
 #include "opentelemetry/nostd/unique_ptr.h"
+#include "opentelemetry/version.h"
+
+#if OPENTELEMETRY_HAVE_WORKING_REGEX
+#  include <regex>
+#endif
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace trace
@@ -32,7 +30,7 @@ namespace trace
  * For more information, see the W3C Trace Context specification:
  * https://www.w3.org/TR/trace-context
  */
-class TraceState
+class OPENTELEMETRY_EXPORT TraceState
 {
 public:
   static constexpr int kKeyMaxSize         = 256;
@@ -41,7 +39,7 @@ public:
   static constexpr auto kKeyValueSeparator = '=';
   static constexpr auto kMembersSeparator  = ',';
 
-  static nostd::shared_ptr<TraceState> GetDefault()
+  OPENTELEMETRY_API_SINGLETON static nostd::shared_ptr<TraceState> GetDefault()
   {
     static nostd::shared_ptr<TraceState> ts{new TraceState()};
     return ts;
@@ -53,7 +51,7 @@ public:
    * the W3C Trace Context specification https://www.w3.org/TR/trace-context/
    * @return TraceState A new TraceState instance or DEFAULT
    */
-  static nostd::shared_ptr<TraceState> FromHeader(nostd::string_view header)
+  static nostd::shared_ptr<TraceState> FromHeader(nostd::string_view header) noexcept
   {
 
     common::KeyValueStringTokenizer kv_str_tokenizer(header);
@@ -76,7 +74,7 @@ public:
       if (!IsValidKey(key) || !IsValidValue(value))
       {
         // invalid header. return empty TraceState
-        ts->kv_properties_.reset(new opentelemetry::common::KeyValueProperties());
+        ts->kv_properties_.reset(new common::KeyValueProperties());
         break;
       }
 
@@ -89,7 +87,7 @@ public:
   /**
    * Creates a w3c tracestate header from TraceState object
    */
-  std::string ToHeader()
+  std::string ToHeader() const noexcept
   {
     std::string header_s;
     bool first = true;
@@ -97,7 +95,7 @@ public:
         [&header_s, &first](nostd::string_view key, nostd::string_view value) noexcept {
           if (!first)
           {
-            header_s.append(",");
+            header_s.append(1, kMembersSeparator);
           }
           else
           {
@@ -135,7 +133,8 @@ public:
    *
    * If the existing object has maximum list members, it's copy is returned.
    */
-  nostd::shared_ptr<TraceState> Set(const nostd::string_view &key, const nostd::string_view &value)
+  nostd::shared_ptr<TraceState> Set(const nostd::string_view &key,
+                                    const nostd::string_view &value) noexcept
   {
     auto curr_size = kv_properties_->Size();
     if (!IsValidKey(key) || !IsValidValue(value))
@@ -168,7 +167,7 @@ public:
    * @returns empty TraceState object if key is invalid
    * @returns copy of original TraceState object if key is not present (??)
    */
-  nostd::shared_ptr<TraceState> Delete(const nostd::string_view &key)
+  nostd::shared_ptr<TraceState> Delete(const nostd::string_view &key) noexcept
   {
     if (!IsValidKey(key))
     {
@@ -210,7 +209,7 @@ public:
    */
   static bool IsValidKey(nostd::string_view key)
   {
-#if HAVE_WORKING_REGEX
+#if OPENTELEMETRY_HAVE_WORKING_REGEX
     return IsValidKeyRegEx(key);
 #else
     return IsValidKeyNonRegEx(key);
@@ -223,7 +222,7 @@ public:
    */
   static bool IsValidValue(nostd::string_view value)
   {
-#if HAVE_WORKING_REGEX
+#if OPENTELEMETRY_HAVE_WORKING_REGEX
     return IsValidValueRegEx(value);
 #else
     return IsValidValueNonRegEx(value);
@@ -231,8 +230,8 @@ public:
   }
 
 private:
-  TraceState() : kv_properties_(new opentelemetry::common::KeyValueProperties()){};
-  TraceState(size_t size) : kv_properties_(new opentelemetry::common::KeyValueProperties(size)){};
+  TraceState() : kv_properties_(new common::KeyValueProperties()) {}
+  TraceState(size_t size) : kv_properties_(new common::KeyValueProperties(size)) {}
 
   static nostd::string_view TrimString(nostd::string_view str, size_t left, size_t right)
   {
@@ -247,6 +246,7 @@ private:
     return str.substr(left, right - left + 1);
   }
 
+#if OPENTELEMETRY_HAVE_WORKING_REGEX
   static bool IsValidKeyRegEx(nostd::string_view key)
   {
     static std::regex reg_key("^[a-z0-9][a-z0-9*_\\-/]{0,255}$");
@@ -268,7 +268,7 @@ private:
     // Need to benchmark without regex, as a string object is created here.
     return std::regex_match(std::string(value.data(), value.size()), reg_value);
   }
-
+#else
   static bool IsValidKeyNonRegEx(nostd::string_view key)
   {
     if (key.empty() || key.size() > kKeyMaxSize || !IsLowerCaseAlphaOrDigit(key[0]))
@@ -308,12 +308,14 @@ private:
     }
     return true;
   }
+#endif
 
   static bool IsLowerCaseAlphaOrDigit(char c) { return isdigit(c) || islower(c); }
 
 private:
   // Store entries in a C-style array to avoid using std::array or std::vector.
-  nostd::unique_ptr<opentelemetry::common::KeyValueProperties> kv_properties_;
+  nostd::unique_ptr<common::KeyValueProperties> kv_properties_;
 };
+
 }  // namespace trace
 OPENTELEMETRY_END_NAMESPACE

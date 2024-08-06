@@ -1,4 +1,4 @@
-﻿// Copyright The OpenTelemetry Authors
+// Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -7,6 +7,7 @@
 #include "opentelemetry/context/context_value.h"
 #include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace context
@@ -24,14 +25,14 @@ public:
   // Creates a context object from a map of keys and identifiers, this will
   // hold a shared_ptr to the head of the DataList linked list
   template <class T>
-  Context(const T &keys_and_values)
+  Context(const T &keys_and_values) noexcept
   {
     head_ = nostd::shared_ptr<DataList>{new DataList(keys_and_values)};
   }
 
   // Creates a context object from a key and value, this will
   // hold a shared_ptr to the head of the DataList linked list
-  Context(nostd::string_view key, ContextValue value)
+  Context(nostd::string_view key, ContextValue value) noexcept
   {
     head_ = nostd::shared_ptr<DataList>{new DataList(key, value)};
   }

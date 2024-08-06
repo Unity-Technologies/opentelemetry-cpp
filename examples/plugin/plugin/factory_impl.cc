@@ -1,8 +1,14 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+#include <new>
+#include <utility>
+
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/nostd/unique_ptr.h"
 #include "opentelemetry/plugin/factory.h"
 #include "opentelemetry/plugin/hook.h"
+#include "opentelemetry/plugin/tracer.h"
 #include "tracer.h"
 
 namespace nostd  = opentelemetry::nostd;
@@ -25,8 +31,8 @@ class FactoryImpl final : public plugin::Factory::FactoryImpl
 public:
   // opentelemetry::plugin::Factory::FactoryImpl
   nostd::unique_ptr<plugin::TracerHandle> MakeTracerHandle(
-      nostd::string_view tracer_config,
-      nostd::unique_ptr<char[]> &error_message) const noexcept override
+      nostd::string_view /* tracer_config */,
+      nostd::unique_ptr<char[]> & /* error_message */) const noexcept override
   {
     std::shared_ptr<Tracer> tracer{new (std::nothrow) Tracer{""}};
     if (tracer == nullptr)
@@ -46,4 +52,4 @@ static nostd::unique_ptr<plugin::Factory::FactoryImpl> MakeFactoryImpl(
   return nostd::unique_ptr<plugin::Factory::FactoryImpl>{new (std::nothrow) FactoryImpl{}};
 }
 
-OPENTELEMETRY_DEFINE_PLUGIN_HOOK(MakeFactoryImpl);
+OPENTELEMETRY_DEFINE_PLUGIN_HOOK(MakeFactoryImpl)

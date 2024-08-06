@@ -1,3 +1,6 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
 load("//bazel:otel_cc_benchmark.bzl", "otel_cc_benchmark")
 
 cc_test(
@@ -8,6 +11,18 @@ cc_test(
     tags = ["test"],
     deps = [
         "//sdk/src/common:random",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "base64_test",
+    srcs = [
+        "base64_test.cc",
+    ],
+    tags = ["test"],
+    deps = [
+        "//sdk/src/common:base64",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -25,9 +40,22 @@ cc_test(
 )
 
 otel_cc_benchmark(
+    name = "base64_benchmark",
+    srcs = ["base64_benchmark.cc"],
+    tags = [
+        "benchmark",
+        "test",
+    ],
+    deps = ["//sdk/src/common:base64"],
+)
+
+otel_cc_benchmark(
     name = "random_benchmark",
     srcs = ["random_benchmark.cc"],
-    tags = ["test"],
+    tags = [
+        "benchmark",
+        "test",
+    ],
     deps = ["//sdk/src/common:random"],
 )
 
@@ -82,7 +110,10 @@ cc_library(
 otel_cc_benchmark(
     name = "circular_buffer_benchmark",
     srcs = ["circular_buffer_benchmark.cc"],
-    tags = ["test"],
+    tags = [
+        "benchmark",
+        "test",
+    ],
     deps = [
         ":baseline_circular_buffer",
         "//sdk:headers",
@@ -124,6 +155,7 @@ cc_test(
     deps = [
         "//api",
         "//sdk:headers",
+        "//sdk/src/common:global_log_handler",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -144,9 +176,24 @@ cc_test(
 otel_cc_benchmark(
     name = "attributemap_hash_benchmark",
     srcs = ["attributemap_hash_benchmark.cc"],
-    tags = ["test"],
+    tags = [
+        "benchmark",
+        "test",
+    ],
     deps = [
         "//api",
         "//sdk:headers",
+    ],
+)
+
+cc_test(
+    name = "env_var_test",
+    srcs = [
+        "env_var_test.cc",
+    ],
+    tags = ["test"],
+    deps = [
+        "//sdk/src/common:env_variables",
+        "@com_google_googletest//:gtest_main",
     ],
 )

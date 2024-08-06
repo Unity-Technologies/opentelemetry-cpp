@@ -1,11 +1,28 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-#ifdef ENABLE_LOGS_PREVIEW
-#  include "opentelemetry/sdk/logs/logger.h"
-#  include "opentelemetry/sdk/logs/log_record.h"
-#  include "opentelemetry/sdk_config.h"
-#  include "opentelemetry/trace/provider.h"
+#include <chrono>
+#include <string>
+#include <utility>
+
+#include "opentelemetry/common/attribute_value.h"
+#include "opentelemetry/context/context.h"
+#include "opentelemetry/context/context_value.h"
+#include "opentelemetry/context/runtime_context.h"
+#include "opentelemetry/logs/log_record.h"
+#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/nostd/unique_ptr.h"
+#include "opentelemetry/nostd/variant.h"
+#include "opentelemetry/sdk/instrumentationscope/instrumentation_scope.h"
+#include "opentelemetry/sdk/logs/logger.h"
+#include "opentelemetry/sdk/logs/logger_context.h"
+#include "opentelemetry/sdk/logs/processor.h"
+#include "opentelemetry/sdk/logs/recordable.h"
+#include "opentelemetry/trace/span.h"
+#include "opentelemetry/trace/span_context.h"
+#include "opentelemetry/trace/span_metadata.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
@@ -13,116 +30,91 @@ namespace sdk
 namespace logs
 {
 namespace trace_api = opentelemetry::trace;
-namespace nostd     = opentelemetry::nostd;
 namespace common    = opentelemetry::common;
 
-Logger::Logger(nostd::string_view name,
-               std::shared_ptr<LoggerContext> context,
-               std::unique_ptr<instrumentationlibrary::InstrumentationLibrary>
-                   instrumentation_library) noexcept
+Logger::Logger(
+    opentelemetry::nostd::string_view name,
+    std::shared_ptr<LoggerContext> context,
+    std::unique_ptr<instrumentationscope::InstrumentationScope> instrumentation_scope) noexcept
     : logger_name_(std::string(name)),
-      instrumentation_library_(std::move(instrumentation_library)),
-      context_(context)
+      instrumentation_scope_(std::move(instrumentation_scope)),
+      context_(std::move(context))
 {}
 
-const nostd::string_view Logger::GetName() noexcept
+const opentelemetry::nostd::string_view Logger::GetName() noexcept
 {
   return logger_name_;
 }
 
-/**
- * Create and populate recordable with the log event's fields passed in.
- * The timestamp, severity, traceid, spanid, and traceflags, are injected
- * if the user does not specify them.
- */
-void Logger::Log(opentelemetry::logs::Severity severity,
-                 nostd::string_view name,
-                 nostd::string_view body,
-                 const common::KeyValueIterable &attributes,
-                 trace_api::TraceId trace_id,
-                 trace_api::SpanId span_id,
-                 trace_api::TraceFlags trace_flags,
-                 common::SystemTimestamp timestamp) noexcept
+opentelemetry::nostd::unique_ptr<opentelemetry::logs::LogRecord> Logger::CreateLogRecord() noexcept
 {
-  // If this logger does not have a processor, no need to create a log record
-  if (!context_)
+  auto recordable = context_->GetProcessor().MakeRecordable();
+
+  recordable->SetObservedTimestamp(std::chrono::system_clock::now());
+
+  if (opentelemetry::context::RuntimeContext::GetCurrent().HasKey(opentelemetry::trace::kSpanKey))
+  {
+    opentelemetry::context::ContextValue context_value =
+        opentelemetry::context::RuntimeContext::GetCurrent().GetValue(
+            opentelemetry::trace::kSpanKey);
+    if (opentelemetry::nostd::holds_alternative<
+            opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span>>(context_value))
+    {
+      opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span> &data =
+          opentelemetry::nostd::get<opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span>>(
+              context_value);
+      if (data)
+      {
+        recordable->SetTraceId(data->GetContext().trace_id());
+        recordable->SetTraceFlags(data->GetContext().trace_flags());
+        recordable->SetSpanId(data->GetContext().span_id());
+      }
+    }
+    else if (opentelemetry::nostd::holds_alternative<
+                 opentelemetry::nostd::shared_ptr<trace::SpanContext>>(context_value))
+    {
+      opentelemetry::nostd::shared_ptr<trace::SpanContext> &data =
+          opentelemetry::nostd::get<opentelemetry::nostd::shared_ptr<trace::SpanContext>>(
+              context_value);
+      if (data)
+      {
+        recordable->SetTraceId(data->trace_id());
+        recordable->SetTraceFlags(data->trace_flags());
+        recordable->SetSpanId(data->span_id());
+      }
+    }
+  }
+
+  return opentelemetry::nostd::unique_ptr<opentelemetry::logs::LogRecord>(recordable.release());
+}
+
+void Logger::EmitLogRecord(
+    opentelemetry::nostd::unique_ptr<opentelemetry::logs::LogRecord> &&log_record) noexcept
+{
+  if (!log_record)
   {
     return;
   }
+
+  std::unique_ptr<Recordable> recordable =
+      std::unique_ptr<Recordable>(static_cast<Recordable *>(log_record.release()));
+  recordable->SetResource(context_->GetResource());
+  recordable->SetInstrumentationScope(GetInstrumentationScope());
+
   auto &processor = context_->GetProcessor();
 
   // TODO: Sampler (should include check for minSeverity)
 
-  auto recordable = processor.MakeRecordable();
-  if (recordable == nullptr)
-  {
-    OTEL_INTERNAL_LOG_ERROR("[LOGGER] Recordable creation failed");
-    return;
-  }
-
-  // Populate recordable fields
-  recordable->SetTimestamp(timestamp);
-  recordable->SetSeverity(severity);
-  recordable->SetName(name);
-  recordable->SetBody(body);
-  recordable->SetInstrumentationLibrary(GetInstrumentationLibrary());
-
-  recordable->SetResource(context_->GetResource());
-
-  attributes.ForEachKeyValue([&](nostd::string_view key, common::AttributeValue value) noexcept {
-    recordable->SetAttribute(key, value);
-    return true;
-  });
-
-  // Inject trace_id/span_id/trace_flags if none is set by user
-  auto provider     = trace_api::Provider::GetTracerProvider();
-  auto tracer       = provider->GetTracer(logger_name_);
-  auto span_context = tracer->GetCurrentSpan()->GetContext();
-
-  // Leave these fields in the recordable empty if neither the passed in values
-  // nor the context values are valid (e.g. the application is not using traces)
-
-  // TraceId
-  if (trace_id.IsValid())
-  {
-    recordable->SetTraceId(trace_id);
-  }
-  else if (span_context.trace_id().IsValid())
-  {
-    recordable->SetTraceId(span_context.trace_id());
-  }
-
-  // SpanId
-  if (span_id.IsValid())
-  {
-    recordable->SetSpanId(span_id);
-  }
-  else if (span_context.span_id().IsValid())
-  {
-    recordable->SetSpanId(span_id);
-  }
-
-  // TraceFlags
-  if (trace_flags.IsSampled())
-  {
-    recordable->SetTraceFlags(trace_flags);
-  }
-  else if (span_context.trace_flags().IsSampled())
-  {
-    recordable->SetTraceFlags(span_context.trace_flags());
-  }
-
-  // Send the log record to the processor
-  processor.OnReceive(std::move(recordable));
+  // Send the log recordable to the processor
+  processor.OnEmit(std::move(recordable));
 }
 
-const opentelemetry::sdk::instrumentationlibrary::InstrumentationLibrary &
-Logger::GetInstrumentationLibrary() const noexcept
+const opentelemetry::sdk::instrumentationscope::InstrumentationScope &
+Logger::GetInstrumentationScope() const noexcept
 {
-  return *instrumentation_library_;
+  return *instrumentation_scope_;
 }
 
 }  // namespace logs
 }  // namespace sdk
 OPENTELEMETRY_END_NAMESPACE
-#endif

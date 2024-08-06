@@ -4,6 +4,7 @@
 #pragma once
 
 #include "opentelemetry/context/context.h"
+#include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/trace/default_span.h"
 #include "opentelemetry/version.h"
 
@@ -12,7 +13,7 @@ namespace trace
 {
 
 // Get Span from explicit context
-inline nostd::shared_ptr<Span> GetSpan(const opentelemetry::context::Context &context)
+inline nostd::shared_ptr<Span> GetSpan(const context::Context &context) noexcept
 {
   context::ContextValue span = context.GetValue(kSpanKey);
   if (nostd::holds_alternative<nostd::shared_ptr<Span>>(span))
@@ -22,9 +23,18 @@ inline nostd::shared_ptr<Span> GetSpan(const opentelemetry::context::Context &co
   return nostd::shared_ptr<Span>(new DefaultSpan(SpanContext::GetInvalid()));
 }
 
+inline bool IsRootSpan(const context::Context &context) noexcept
+{
+  context::ContextValue is_root_span = context.GetValue(kIsRootSpanKey);
+  if (nostd::holds_alternative<bool>(is_root_span))
+  {
+    return nostd::get<bool>(is_root_span);
+  }
+  return false;
+}
+
 // Set Span into explicit context
-inline context::Context SetSpan(opentelemetry::context::Context &context,
-                                nostd::shared_ptr<Span> span)
+inline context::Context SetSpan(context::Context &context, nostd::shared_ptr<Span> span) noexcept
 {
   return context.SetValue(kSpanKey, span);
 }

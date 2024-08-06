@@ -1,3 +1,6 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
@@ -5,6 +8,7 @@ cc_library(
     srcs = [
         "http_client_curl.cc",
         "http_client_factory_curl.cc",
+        "http_operation_curl.cc",
     ],
     copts = [
         "-DWITH_CURL",
@@ -25,5 +29,6 @@ cc_library(
         "//sdk:headers",
         "//sdk/src/common:random",
         "@curl",
+        "@zlib",
     ],
 )

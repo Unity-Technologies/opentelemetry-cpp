@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <codecvt>
 #include <ctime>
 #include <iomanip>
 #include <locale>
@@ -13,6 +12,7 @@
 #include <string>
 
 #include "opentelemetry/common/macros.h"
+#include "opentelemetry/common/timestamp.h"
 #include "opentelemetry/exporters/etw/uuid.h"
 #include "opentelemetry/version.h"
 
@@ -24,6 +24,16 @@
 #  pragma comment(lib, "Rpcrt4.lib")
 #  include <Objbase.h>
 #  pragma comment(lib, "Ole32.Lib")
+#else
+#  include <codecvt>
+#endif
+
+#if defined(ENABLE_ENV_PROPERTIES) || defined(HAVE_MSGPACK)
+#  include <nlohmann/json.hpp>
+#endif
+
+#if defined(ENABLE_ENV_PROPERTIES)
+#  include "etw_properties.h"
 #endif
 
 OPENTELEMETRY_BEGIN_NAMESPACE
@@ -193,8 +203,8 @@ static inline GUID GetProviderGuid(const char *providerName)
   guid.Data4[6] = buffer2[14];
   guid.Data4[7] = buffer2[15];
 
-  delete buffer;
-  delete buffer2;
+  delete[] buffer;
+  delete[] buffer2;
 
   return guid;
 }
@@ -233,40 +243,188 @@ static inline int64_t getUtcSystemTimeinTicks()
 #endif
 }
 
+constexpr unsigned int NANOSECS_PRECISION = 1000000000;
 /**
- * @brief Convert local system milliseconds time to ISO8601 string UTC time
+ * @brief Convert local system nanoseconds time to ISO8601 string UTC time
  *
- * @param timestampMs   Milliseconds since epoch in system time
+ * @param timestampNs   Milliseconds since epoch in system time
  *
- * @return ISO8601 UTC string with microseconds part set to 000
+ * @return ISO8601 UTC string with nanoseconds
  */
-static inline std::string formatUtcTimestampMsAsISO8601(int64_t timestampMs)
+static inline std::string formatUtcTimestampNsAsISO8601(int64_t timestampNs)
 {
-  char buf[sizeof("YYYY-MM-DDTHH:MM:SS.ssssssZ") + 1] = {0};
+  char buf[sizeof("YYYY-MM-DDTHH:MM:SS.sssssssssZ") + 1] = {0};
 #ifdef _WIN32
-  __time64_t seconds = static_cast<__time64_t>(timestampMs / 1000);
-  int milliseconds   = static_cast<int>(timestampMs % 1000);
+  __time64_t seconds = static_cast<__time64_t>(timestampNs / NANOSECS_PRECISION);
+  int nanoseconds    = static_cast<int>(timestampNs % NANOSECS_PRECISION);
   tm tm;
   if (::_gmtime64_s(&tm, &seconds) != 0)
   {
     memset(&tm, 0, sizeof(tm));
   }
-  ::_snprintf_s(buf, _TRUNCATE, "%04d-%02d-%02dT%02d:%02d:%02d.%06dZ", 1900 + tm.tm_year,
-                1 + tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 1000 * milliseconds);
+  ::_snprintf_s(buf, _TRUNCATE, "%04d-%02d-%02dT%02d:%02d:%02d.%09dZ", 1900 + tm.tm_year,
+                1 + tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, nanoseconds);
 #else
-  time_t seconds   = static_cast<time_t>(timestampMs / 1000);
-  int milliseconds = static_cast<int>(timestampMs % 1000);
+  time_t seconds  = static_cast<time_t>(timestampNs / NANOSECS_PRECISION);
+  int nanoseconds = static_cast<int>(timestampNs % NANOSECS_PRECISION);
   tm tm;
   bool valid = (gmtime_r(&seconds, &tm) != NULL);
   if (!valid)
   {
     memset(&tm, 0, sizeof(tm));
   }
-  (void)snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%06dZ", 1900 + tm.tm_year,
-                 1 + tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 1000 * milliseconds);
+  (void)snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%09dZ", 1900 + tm.tm_year,
+                 1 + tm.tm_mon, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, nanoseconds);
 #endif
   return buf;
 }
+
+#if defined(ENABLE_ENV_PROPERTIES)
+
+static inline void PopulateAttribute(nlohmann::json &attribute,
+                                     nostd::string_view key,
+                                     const exporter::etw::PropertyValue &value)
+{
+  if (nostd::holds_alternative<bool>(value))
+  {
+    attribute[key.data()] = nostd::get<bool>(value);
+  }
+  else if (nostd::holds_alternative<int>(value))
+  {
+    attribute[key.data()] = nostd::get<int>(value);
+  }
+  else if (nostd::holds_alternative<int64_t>(value))
+  {
+    attribute[key.data()] = nostd::get<int64_t>(value);
+  }
+  else if (nostd::holds_alternative<unsigned int>(value))
+  {
+    attribute[key.data()] = nostd::get<unsigned int>(value);
+  }
+  else if (nostd::holds_alternative<uint64_t>(value))
+  {
+    attribute[key.data()] = nostd::get<uint64_t>(value);
+  }
+  else if (nostd::holds_alternative<double>(value))
+  {
+    attribute[key.data()] = nostd::get<double>(value);
+  }
+  else if (nostd::holds_alternative<const char *>(value))
+  {
+    attribute[key.data()] = std::string(nostd::get<const char *>(value));
+  }
+  else if (nostd::holds_alternative<std::string>(value))
+  {
+    attribute[key.data()] = nostd::get<std::string>(value);
+  }
+  else if (nostd::holds_alternative<std::vector<uint8_t>>(value))
+  {
+    attribute[key.data()] = {};
+    for (const auto &val : nostd::get<std::vector<uint8_t>>(value))
+    {
+      attribute[key.data()].push_back(val);
+    }
+  }
+  else if (nostd::holds_alternative<std::vector<bool>>(value))
+  {
+    attribute[key.data()] = {};
+    for (const auto &val : nostd::get<std::vector<bool>>(value))
+    {
+      attribute[key.data()].push_back(val);
+    }
+  }
+  else if (nostd::holds_alternative<std::vector<int>>(value))
+  {
+    attribute[key.data()] = {};
+    for (const auto &val : nostd::get<std::vector<int>>(value))
+    {
+      attribute[key.data()].push_back(val);
+    }
+  }
+  else if (nostd::holds_alternative<std::vector<int64_t>>(value))
+  {
+    attribute[key.data()] = {};
+    for (const auto &val : nostd::get<std::vector<int64_t>>(value))
+    {
+      attribute[key.data()].push_back(val);
+    }
+  }
+  else if (nostd::holds_alternative<std::vector<unsigned int>>(value))
+  {
+    attribute[key.data()] = {};
+    for (const auto &val : nostd::get<std::vector<unsigned int>>(value))
+    {
+      attribute[key.data()].push_back(val);
+    }
+  }
+  else if (nostd::holds_alternative<std::vector<uint64_t>>(value))
+  {
+    attribute[key.data()] = {};
+    for (const auto &val : nostd::get<std::vector<uint64_t>>(value))
+    {
+      attribute[key.data()].push_back(val);
+    }
+  }
+  else if (nostd::holds_alternative<std::vector<double>>(value))
+  {
+    attribute[key.data()] = {};
+    for (const auto &val : nostd::get<std::vector<double>>(value))
+    {
+      attribute[key.data()].push_back(val);
+    }
+  }
+  else if (nostd::holds_alternative<std::vector<std::string>>(value))
+  {
+    attribute[key.data()] = {};
+    for (const auto &val : nostd::get<std::vector<std::string>>(value))
+    {
+      attribute[key.data()].push_back(val);
+    }
+  }
+}
+
+#endif  // defined(ENABLE_ENV_PROPERTIES)
+
+#if defined(HAVE_MSGPACK)
+
+static inline nlohmann::byte_container_with_subtype<std::vector<std::uint8_t>>
+get_msgpack_eventtimeext(int32_t seconds = 0, int32_t nanoseconds = 0)
+{
+  if ((seconds == 0) && (nanoseconds == 0))
+  {
+    std::chrono::system_clock::time_point tp = std::chrono::system_clock::now();
+    auto duration                            = tp.time_since_epoch();
+    seconds =
+        static_cast<int32_t>(std::chrono::duration_cast<std::chrono::seconds>(duration).count());
+    nanoseconds = static_cast<int32_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count() % 1000000000);
+  }
+
+  uint64_t timestamp =
+      ((seconds / 100) & ((1ull << 34) - 1)) |
+      (((seconds % 100 * 10000000 + nanoseconds / 100) & ((1ull << 30) - 1)) << 34);
+
+  nlohmann::byte_container_with_subtype<std::vector<std::uint8_t>> ts{std::vector<uint8_t>(8)};
+
+  *reinterpret_cast<uint64_t *>(ts.data()) = timestamp;
+  ts.set_subtype(0x00);
+
+  return ts;
+}
+
+static inline nlohmann::byte_container_with_subtype<std::vector<std::uint8_t>>
+GetMsgPackEventTimeFromSystemTimestamp(opentelemetry::common::SystemTimestamp timestamp) noexcept
+{
+  return get_msgpack_eventtimeext(
+      // Add all whole seconds to the event time
+      static_cast<int32_t>(
+          std::chrono::duration_cast<std::chrono::seconds>(timestamp.time_since_epoch()).count()),
+      // Add any remaining nanoseconds past the last whole second
+      std::chrono::duration_cast<std::chrono::nanoseconds>(timestamp.time_since_epoch()).count() %
+          1000000000);
+}
+
+#endif  // defined(HAVE_MSGPACK)
 
 };  // namespace utils
 

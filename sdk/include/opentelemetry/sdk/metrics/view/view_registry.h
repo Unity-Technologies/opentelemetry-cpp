@@ -2,12 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
-#ifndef ENABLE_METRICS_PREVIEW
-#  include <unordered_map>
-#  include "opentelemetry/sdk/instrumentationlibrary/instrumentation_library.h"
-#  include "opentelemetry/sdk/metrics/view/instrument_selector.h"
-#  include "opentelemetry/sdk/metrics/view/meter_selector.h"
-#  include "opentelemetry/sdk/metrics/view/view.h"
+
+#include <memory>
+#include <unordered_map>
+#include <vector>
+
+#include "opentelemetry/nostd/function_ref.h"
+#include "opentelemetry/sdk/instrumentationscope/instrumentation_scope.h"
+#include "opentelemetry/sdk/metrics/view/instrument_selector.h"
+#include "opentelemetry/sdk/metrics/view/meter_selector.h"
+#include "opentelemetry/sdk/metrics/view/view.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
@@ -43,15 +48,15 @@ public:
     registered_views_.push_back(std::move(registered_view));
   }
 
-  bool FindViews(const opentelemetry::sdk::metrics::InstrumentDescriptor &instrument_descriptor,
-                 const opentelemetry::sdk::instrumentationlibrary::InstrumentationLibrary
-                     &instrumentation_library,
-                 nostd::function_ref<bool(const View &)> callback) const
+  bool FindViews(
+      const opentelemetry::sdk::metrics::InstrumentDescriptor &instrument_descriptor,
+      const opentelemetry::sdk::instrumentationscope::InstrumentationScope &instrumentation_scope,
+      nostd::function_ref<bool(const View &)> callback) const
   {
     bool found = false;
     for (auto const &registered_view : registered_views_)
     {
-      if (MatchMeter(registered_view->meter_selector_.get(), instrumentation_library) &&
+      if (MatchMeter(registered_view->meter_selector_.get(), instrumentation_scope) &&
           MatchInstrument(registered_view->instrument_selector_.get(), instrument_descriptor))
       {
         found = true;
@@ -64,7 +69,7 @@ public:
     // return default view if none found;
     if (!found)
     {
-      static View view("");
+      static const View view("");
       if (!callback(view))
       {
         return false;
@@ -73,19 +78,20 @@ public:
     return true;
   }
 
+  ViewRegistry()  = default;
   ~ViewRegistry() = default;
 
 private:
   std::vector<std::unique_ptr<RegisteredView>> registered_views_;
-  static bool MatchMeter(opentelemetry::sdk::metrics::MeterSelector *selector,
-                         const opentelemetry::sdk::instrumentationlibrary::InstrumentationLibrary
-                             &instrumentation_library)
+  static bool MatchMeter(
+      opentelemetry::sdk::metrics::MeterSelector *selector,
+      const opentelemetry::sdk::instrumentationscope::InstrumentationScope &instrumentation_scope)
   {
-    return selector->GetNameFilter()->Match(instrumentation_library.GetName()) &&
-           (instrumentation_library.GetVersion().size() == 0 ||
-            selector->GetVersionFilter()->Match(instrumentation_library.GetVersion())) &&
-           (instrumentation_library.GetSchemaURL().size() == 0 ||
-            selector->GetSchemaFilter()->Match(instrumentation_library.GetSchemaURL()));
+    return selector->GetNameFilter()->Match(instrumentation_scope.GetName()) &&
+           (instrumentation_scope.GetVersion().size() == 0 ||
+            selector->GetVersionFilter()->Match(instrumentation_scope.GetVersion())) &&
+           (instrumentation_scope.GetSchemaURL().size() == 0 ||
+            selector->GetSchemaFilter()->Match(instrumentation_scope.GetSchemaURL()));
   }
 
   static bool MatchInstrument(
@@ -93,10 +99,10 @@ private:
       const opentelemetry::sdk::metrics::InstrumentDescriptor &instrument_descriptor)
   {
     return selector->GetNameFilter()->Match(instrument_descriptor.name_) &&
+           selector->GetUnitFilter()->Match(instrument_descriptor.unit_) &&
            (selector->GetInstrumentType() == instrument_descriptor.type_);
   }
 };
-};  // namespace metrics
+}  // namespace metrics
 }  // namespace sdk
 OPENTELEMETRY_END_NAMESPACE
-#endif

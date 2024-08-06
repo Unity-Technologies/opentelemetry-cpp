@@ -2,7 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "opentelemetry/exporters/otlp/otlp_recordable.h"
+#include "opentelemetry/exporters/otlp/otlp_recordable_utils.h"
+#include "opentelemetry/sdk/resource/resource.h"
+
+#if defined(__GNUC__)
+// GCC raises -Wsuggest-override warnings on GTest,
+// in code related to TYPED_TEST() .
+#  pragma GCC diagnostic ignored "-Wsuggest-override"
+#endif
+
 #include <gtest/gtest.h>
+
+// clang-format off
+#include "opentelemetry/exporters/otlp/protobuf_include_prefix.h" // IWYU pragma: keep
+#include "opentelemetry/proto/collector/trace/v1/trace_service.pb.h"
+#include "opentelemetry/exporters/otlp/protobuf_include_suffix.h" // IWYU pragma: keep
+// clang-format on
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace exporter
@@ -13,6 +28,8 @@ namespace trace_api = opentelemetry::trace;
 namespace trace_sdk = opentelemetry::sdk::trace;
 namespace resource  = opentelemetry::sdk::resource;
 namespace proto     = opentelemetry::proto;
+
+namespace trace_sdk_2 = opentelemetry::sdk::trace;
 
 TEST(OtlpRecordable, SetIdentity)
 {
@@ -49,13 +66,6 @@ TEST(OtlpRecordable, SetIdentity)
   EXPECT_EQ(rec_invalid_parent.span().parent_span_id(), std::string{});
 }
 
-TEST(OtlpRecordable, SetName)
-{
-  OtlpRecordable rec;
-  nostd::string_view name = "Test Span";
-  rec.SetName(name);
-  EXPECT_EQ(rec.span().name(), name);
-}
 TEST(OtlpRecordable, SetSpanKind)
 {
   OtlpRecordable rec;
@@ -64,12 +74,12 @@ TEST(OtlpRecordable, SetSpanKind)
   EXPECT_EQ(rec.span().kind(), proto::trace::v1::Span_SpanKind::Span_SpanKind_SPAN_KIND_SERVER);
 }
 
-TEST(OtlpRecordable, SetInstrumentationLibrary)
+TEST(OtlpRecordable, SetInstrumentationScope)
 {
   OtlpRecordable rec;
-  auto inst_lib = trace_sdk::InstrumentationLibrary::Create("test", "v1");
-  rec.SetInstrumentationLibrary(*inst_lib);
-  auto proto_instr_libr = rec.GetProtoInstrumentationLibrary();
+  auto inst_lib = trace_sdk::InstrumentationScope::Create("test", "v1");
+  rec.SetInstrumentationScope(*inst_lib);
+  auto proto_instr_libr = rec.GetProtoInstrumentationScope();
   EXPECT_EQ(proto_instr_libr.name(), inst_lib->GetName());
   EXPECT_EQ(proto_instr_libr.version(), inst_lib->GetVersion());
 }
@@ -77,9 +87,9 @@ TEST(OtlpRecordable, SetInstrumentationLibrary)
 TEST(OtlpRecordable, SetInstrumentationLibraryWithSchemaURL)
 {
   OtlpRecordable rec;
-  const std::string expected_schema_url{"https://opentelemetry.io/schemas/1.2.0"};
-  auto inst_lib = trace_sdk::InstrumentationLibrary::Create("test", "v1", expected_schema_url);
-  rec.SetInstrumentationLibrary(*inst_lib);
+  const std::string expected_schema_url{"https://opentelemetry.io/schemas/1.11.0"};
+  auto inst_lib = trace_sdk::InstrumentationScope::Create("test", "v1", expected_schema_url);
+  rec.SetInstrumentationScope(*inst_lib);
   EXPECT_EQ(expected_schema_url, rec.GetInstrumentationLibrarySchemaURL());
 }
 
@@ -206,7 +216,7 @@ TEST(OtlpRecordable, SetResource)
   bool found_service_name = false;
   for (int i = 0; i < proto_resource.attributes_size(); i++)
   {
-    auto attr = proto_resource.attributes(static_cast<int>(i));
+    const auto &attr = proto_resource.attributes(static_cast<int>(i));
     if (attr.key() == service_name_key && attr.value().string_value() == service_name)
     {
       found_service_name = true;
@@ -220,7 +230,7 @@ TEST(OtlpRecordable, SetResourceWithSchemaURL)
   OtlpRecordable rec;
   const std::string service_name_key    = "service.name";
   const std::string service_name        = "test-otlp";
-  const std::string expected_schema_url = "https://opentelemetry.io/schemas/1.2.0";
+  const std::string expected_schema_url = "https://opentelemetry.io/schemas/1.11.0";
   auto resource =
       resource::Resource::Create({{service_name_key, service_name}}, expected_schema_url);
   rec.SetResource(resource);
@@ -280,6 +290,116 @@ TEST(OtlpRecordable, SetArrayAttribute)
               double_span[i]);
     EXPECT_EQ(rec.span().attributes(2).value().array_value().values(i).string_value(), str_span[i]);
   }
+}
+
+// Test otlp resource populate request util
+TEST(OtlpRecordable, PopulateRequest)
+{
+  auto rec1      = std::unique_ptr<sdk::trace::Recordable>(new OtlpRecordable);
+  auto resource1 = resource::Resource::Create({{"service.name", "one"}});
+  rec1->SetResource(resource1);
+  auto inst_lib1 = trace_sdk::InstrumentationScope::Create("one", "1");
+  rec1->SetInstrumentationScope(*inst_lib1);
+
+  auto rec2      = std::unique_ptr<sdk::trace::Recordable>(new OtlpRecordable);
+  auto resource2 = resource::Resource::Create({{"service.name", "two"}});
+  rec2->SetResource(resource2);
+  auto inst_lib2 = trace_sdk::InstrumentationScope::Create("two", "2");
+  rec2->SetInstrumentationScope(*inst_lib2);
+
+  // This has the same resource as rec2, but a different scope
+  auto rec3 = std::unique_ptr<sdk::trace::Recordable>(new OtlpRecordable);
+  rec3->SetResource(resource2);
+  auto inst_lib3 = trace_sdk::InstrumentationScope::Create("three", "3");
+  rec3->SetInstrumentationScope(*inst_lib3);
+
+  proto::collector::trace::v1::ExportTraceServiceRequest req;
+  std::vector<std::unique_ptr<sdk::trace::Recordable>> spans;
+  spans.push_back(std::move(rec1));
+  spans.push_back(std::move(rec2));
+  spans.push_back(std::move(rec3));
+  const nostd::span<std::unique_ptr<sdk::trace::Recordable>, 3> spans_span(spans.data(), 3);
+  OtlpRecordableUtils::PopulateRequest(spans_span, &req);
+
+  EXPECT_EQ(req.resource_spans().size(), 2);
+  for (const auto &resource_spans : req.resource_spans())
+  {
+    auto service_name     = resource_spans.resource().attributes(0).value().string_value();
+    auto scope_spans_size = resource_spans.scope_spans().size();
+    if (service_name == "one")
+    {
+      EXPECT_EQ(scope_spans_size, 1);
+      EXPECT_EQ(resource_spans.scope_spans(0).scope().name(), "one");
+    }
+    if (service_name == "two")
+    {
+      EXPECT_EQ(scope_spans_size, 2);
+    }
+  }
+}
+
+// Test otlp resource populate request util with missing data
+TEST(OtlpRecordable, PopulateRequestMissing)
+{
+  // Missing scope
+  auto rec1      = std::unique_ptr<sdk::trace::Recordable>(new OtlpRecordable);
+  auto resource1 = resource::Resource::Create({{"service.name", "one"}});
+  rec1->SetResource(resource1);
+
+  // Missing resource
+  auto rec2      = std::unique_ptr<sdk::trace::Recordable>(new OtlpRecordable);
+  auto inst_lib2 = trace_sdk::InstrumentationScope::Create("two", "2");
+  rec2->SetInstrumentationScope(*inst_lib2);
+
+  proto::collector::trace::v1::ExportTraceServiceRequest req;
+  std::vector<std::unique_ptr<sdk::trace::Recordable>> spans;
+  spans.push_back(std::move(rec1));
+  spans.push_back(std::move(rec2));
+  const nostd::span<std::unique_ptr<sdk::trace::Recordable>, 2> spans_span(spans.data(), 2);
+  OtlpRecordableUtils::PopulateRequest(spans_span, &req);
+
+  EXPECT_EQ(req.resource_spans().size(), 2);
+  for (const auto &resource_spans : req.resource_spans())
+  {
+    // Both should have scope spans
+    EXPECT_EQ(resource_spans.scope_spans().size(), 1);
+    auto scope = resource_spans.scope_spans(0).scope();
+    // Select the one with missing scope
+    if (scope.name() == "")
+    {
+      // Version is also empty
+      EXPECT_EQ(scope.version(), "");
+    }
+    else
+    {
+      // The other has a name and version
+      EXPECT_EQ(scope.name(), "two");
+      EXPECT_EQ(scope.version(), "2");
+    }
+  }
+}
+
+template <typename T>
+struct EmptyArrayAttributeTest : public testing::Test
+{
+  using ElementType = T;
+};
+
+using ArrayElementTypes =
+    testing::Types<bool, double, nostd::string_view, uint8_t, int, int64_t, unsigned int, uint64_t>;
+TYPED_TEST_SUITE(EmptyArrayAttributeTest, ArrayElementTypes);
+
+// Test empty arrays.
+TYPED_TEST(EmptyArrayAttributeTest, SetEmptyArrayAttribute)
+{
+  using ArrayElementType = typename TestFixture::ElementType;
+  OtlpRecordable rec;
+
+  nostd::span<const ArrayElementType> span = {};
+  rec.SetAttribute("empty_arr_attr", span);
+
+  EXPECT_TRUE(rec.span().attributes(0).value().has_array_value());
+  EXPECT_TRUE(rec.span().attributes(0).value().array_value().values().empty());
 }
 
 /**

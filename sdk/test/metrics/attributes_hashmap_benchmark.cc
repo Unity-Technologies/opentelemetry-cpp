@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <benchmark/benchmark.h>
-#ifndef ENABLE_METRICS_PREVIEW
-#  include "opentelemetry/sdk/common/attributemap_hash.h"
-#  include "opentelemetry/sdk/metrics/aggregation/aggregation.h"
-#  include "opentelemetry/sdk/metrics/aggregation/drop_aggregation.h"
-#  include "opentelemetry/sdk/metrics/instruments.h"
-#  include "opentelemetry/sdk/metrics/state/attributes_hashmap.h"
+#include "opentelemetry/sdk/common/attributemap_hash.h"
+#include "opentelemetry/sdk/metrics/aggregation/aggregation.h"
+#include "opentelemetry/sdk/metrics/aggregation/drop_aggregation.h"
+#include "opentelemetry/sdk/metrics/instruments.h"
+#include "opentelemetry/sdk/metrics/state/attributes_hashmap.h"
 
-#  include <functional>
-#  include <vector>
+#include <functional>
+#include <mutex>
+#include <thread>
+#include <vector>
 
 using namespace opentelemetry::sdk::metrics;
 constexpr size_t MAX_THREADS = 500;
@@ -25,19 +26,25 @@ void BM_AttributseHashMap(benchmark::State &state)
   std::vector<MetricAttributes> attributes = {{{"k1", "v1"}, {"k2", "v2"}},
                                               {{"k1", "v1"}, {"k2", "v2"}, {"k3", "v3"}}};
 
-  std::function<std::unique_ptr<Aggregation>()> create_default_aggregation =
-      []() -> std::unique_ptr<Aggregation> {
-    return std::unique_ptr<Aggregation>(new DropAggregation);
-  };
+  std::mutex m;
 
+  auto work = [&attributes, &hash_map, &m](const size_t i) {
+    std::function<std::unique_ptr<Aggregation>()> create_default_aggregation =
+        []() -> std::unique_ptr<Aggregation> {
+      return std::unique_ptr<Aggregation>(new DropAggregation);
+    };
+    m.lock();
+    auto hash = opentelemetry::sdk::common::GetHashForAttributeMap(attributes[i % 2]);
+    hash_map.GetOrSetDefault(attributes[i % 2], create_default_aggregation, hash)
+        ->Aggregate(static_cast<int64_t>(1));
+    benchmark::DoNotOptimize(hash_map.Has(hash));
+    m.unlock();
+  };
   while (state.KeepRunning())
   {
     for (size_t i = 0; i < MAX_THREADS; i++)
     {
-      workers.push_back(std::thread([&]() {
-        hash_map.GetOrSetDefault(attributes[i % 2], create_default_aggregation)->Aggregate(1l);
-        benchmark::DoNotOptimize(hash_map.Has(attributes[i % 2]));
-      }));
+      workers.push_back(std::thread(work, i));
     }
   }
 
@@ -49,5 +56,5 @@ void BM_AttributseHashMap(benchmark::State &state)
 
 BENCHMARK(BM_AttributseHashMap);
 }  // namespace
-#endif
+
 BENCHMARK_MAIN();

@@ -1,9 +1,14 @@
-﻿// Copyright The OpenTelemetry Authors
+// Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
 
+#include "opentelemetry/common/macros.h"
 #include "opentelemetry/context/context.h"
+#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/nostd/unique_ptr.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace context
@@ -17,7 +22,7 @@ class Token
 public:
   bool operator==(const Context &other) const noexcept { return context_ == other; }
 
-  ~Token();
+  ~Token() noexcept;
 
 private:
   friend class RuntimeContextStorage;
@@ -36,7 +41,7 @@ private:
  * this class and passing an initialized RuntimeContextStorage object to
  * RuntimeContext::SetRuntimeContextStorage.
  */
-class RuntimeContextStorage
+class OPENTELEMETRY_EXPORT RuntimeContextStorage
 {
 public:
   /**
@@ -59,7 +64,7 @@ public:
    */
   virtual bool Detach(Token &token) noexcept = 0;
 
-  virtual ~RuntimeContextStorage(){};
+  virtual ~RuntimeContextStorage() {}
 
 protected:
   nostd::unique_ptr<Token> CreateToken(const Context &context) noexcept
@@ -77,7 +82,7 @@ static RuntimeContextStorage *GetDefaultStorage() noexcept;
 // Provides a wrapper for propagating the context object globally.
 //
 // By default, a thread-local runtime context storage is used.
-class RuntimeContext
+class OPENTELEMETRY_EXPORT RuntimeContext
 {
 public:
   // Return the current context.
@@ -166,14 +171,14 @@ private:
     return GetStorage();
   }
 
-  static nostd::shared_ptr<RuntimeContextStorage> &GetStorage() noexcept
+  OPENTELEMETRY_API_SINGLETON static nostd::shared_ptr<RuntimeContextStorage> &GetStorage() noexcept
   {
     static nostd::shared_ptr<RuntimeContextStorage> context(GetDefaultStorage());
     return context;
   }
 };
 
-inline Token::~Token()
+inline Token::~Token() noexcept
 {
   context::RuntimeContext::Detach(*this);
 }
@@ -231,7 +236,7 @@ private:
   {
     friend class ThreadLocalContextStorage;
 
-    Stack() noexcept : size_(0), capacity_(0), base_(nullptr){};
+    Stack() noexcept : size_(0), capacity_(0), base_(nullptr) {}
 
     // Pops the top Context off the stack.
     void Pop() noexcept
@@ -315,7 +320,7 @@ private:
     Context *base_;
   };
 
-  Stack &GetStack()
+  OPENTELEMETRY_API_SINGLETON Stack &GetStack()
   {
     static thread_local Stack stack_ = Stack();
     return stack_;

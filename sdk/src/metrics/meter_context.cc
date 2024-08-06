@@ -1,13 +1,33 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef ENABLE_METRICS_PREVIEW
-#  include "opentelemetry/sdk/metrics/meter_context.h"
-#  include "opentelemetry/sdk/common/global_log_handler.h"
-#  include "opentelemetry/sdk/metrics/metric_exporter.h"
-#  include "opentelemetry/sdk/metrics/metric_reader.h"
-#  include "opentelemetry/sdk_config.h"
-#  include "opentelemetry/version.h"
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <ostream>
+#include <ratio>
+#include <utility>
+#include <vector>
+
+#include "opentelemetry/common/spin_lock_mutex.h"
+#include "opentelemetry/common/timestamp.h"
+#include "opentelemetry/nostd/function_ref.h"
+#include "opentelemetry/nostd/span.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/sdk/common/global_log_handler.h"
+#include "opentelemetry/sdk/instrumentationscope/instrumentation_scope.h"
+#include "opentelemetry/sdk/metrics/meter.h"
+#include "opentelemetry/sdk/metrics/meter_context.h"
+#include "opentelemetry/sdk/metrics/metric_reader.h"
+#include "opentelemetry/sdk/metrics/state/metric_collector.h"
+#include "opentelemetry/sdk/metrics/view/instrument_selector.h"
+#include "opentelemetry/sdk/metrics/view/meter_selector.h"
+#include "opentelemetry/sdk/metrics/view/view.h"
+#include "opentelemetry/sdk/metrics/view/view_registry.h"
+#include "opentelemetry/sdk/resource/resource.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
@@ -15,13 +35,9 @@ namespace sdk
 namespace metrics
 {
 
-MeterContext::MeterContext(std::vector<std::unique_ptr<MetricExporter>> &&exporters,
-                           std::unique_ptr<ViewRegistry> views,
-                           opentelemetry::sdk::resource::Resource resource) noexcept
-    : resource_{resource},
-      exporters_(std::move(exporters)),
-      views_(std::move(views)),
-      sdk_start_ts_{std::chrono::system_clock::now()}
+MeterContext::MeterContext(std::unique_ptr<ViewRegistry> views,
+                           const opentelemetry::sdk::resource::Resource &resource) noexcept
+    : resource_{resource}, views_(std::move(views)), sdk_start_ts_{std::chrono::system_clock::now()}
 {}
 
 const resource::Resource &MeterContext::GetResource() const noexcept
@@ -34,14 +50,29 @@ ViewRegistry *MeterContext::GetViewRegistry() const noexcept
   return views_.get();
 }
 
+bool MeterContext::ForEachMeter(
+    nostd::function_ref<bool(std::shared_ptr<Meter> &meter)> callback) noexcept
+{
+  std::lock_guard<opentelemetry::common::SpinLockMutex> guard(meter_lock_);
+  for (auto &meter : meters_)
+  {
+    if (!callback(meter))
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
 nostd::span<std::shared_ptr<Meter>> MeterContext::GetMeters() noexcept
 {
-  return nostd::span<std::shared_ptr<Meter>>{meters_};
+  // no lock required, as this is called by MeterProvider in thread-safe manner.
+  return nostd::span<std::shared_ptr<Meter>>{meters_.data(), meters_.size()};
 }
 
 nostd::span<std::shared_ptr<CollectorHandle>> MeterContext::GetCollectors() noexcept
 {
-  return nostd::span<std::shared_ptr<CollectorHandle>>(collectors_);
+  return nostd::span<std::shared_ptr<CollectorHandle>>(collectors_.data(), collectors_.size());
 }
 
 opentelemetry::common::SystemTimestamp MeterContext::GetSDKStartTime() noexcept
@@ -49,15 +80,9 @@ opentelemetry::common::SystemTimestamp MeterContext::GetSDKStartTime() noexcept
   return sdk_start_ts_;
 }
 
-void MeterContext::AddMetricExporter(std::unique_ptr<MetricExporter> exporter) noexcept
+void MeterContext::AddMetricReader(std::shared_ptr<MetricReader> reader) noexcept
 {
-  exporters_.push_back(std::move(exporter));
-}
-
-void MeterContext::AddMetricReader(std::unique_ptr<MetricReader> reader) noexcept
-{
-  auto collector =
-      std::shared_ptr<MetricCollector>{new MetricCollector(shared_from_this(), std::move(reader))};
+  auto collector = std::shared_ptr<MetricCollector>{new MetricCollector(this, std::move(reader))};
   collectors_.push_back(collector);
 }
 
@@ -68,61 +93,130 @@ void MeterContext::AddView(std::unique_ptr<InstrumentSelector> instrument_select
   views_->AddView(std::move(instrument_selector), std::move(meter_selector), std::move(view));
 }
 
-void MeterContext::AddMeter(std::shared_ptr<Meter> meter)
+#ifdef ENABLE_METRICS_EXEMPLAR_PREVIEW
+
+void MeterContext::SetExemplarFilter(metrics::ExemplarFilterType exemplar_filter_type) noexcept
 {
+  exemplar_filter_type_ = exemplar_filter_type;
+}
+
+ExemplarFilterType MeterContext::GetExemplarFilter() const noexcept
+{
+  return exemplar_filter_type_;
+}
+
+#endif  // ENABLE_METRICS_EXEMPLAR_PREVIEW
+
+void MeterContext::AddMeter(const std::shared_ptr<Meter> &meter)
+{
+  std::lock_guard<opentelemetry::common::SpinLockMutex> guard(meter_lock_);
   meters_.push_back(meter);
+}
+
+void MeterContext::RemoveMeter(nostd::string_view name,
+                               nostd::string_view version,
+                               nostd::string_view schema_url)
+{
+  std::lock_guard<opentelemetry::common::SpinLockMutex> guard(meter_lock_);
+
+  std::vector<std::shared_ptr<Meter>> filtered_meters;
+
+  for (auto &meter : meters_)
+  {
+    auto scope = meter->GetInstrumentationScope();
+    if (scope->equal(name, version, schema_url))
+    {
+      OTEL_INTERNAL_LOG_INFO("[MeterContext::RemoveMeter] removing meter name <"
+                             << name << ">, version <" << version << ">, URL <" << schema_url
+                             << ">");
+    }
+    else
+    {
+      filtered_meters.push_back(meter);
+    }
+  }
+
+  meters_.swap(filtered_meters);
 }
 
 bool MeterContext::Shutdown() noexcept
 {
-  bool return_status = true;
+  bool result = true;
+  // Shutdown only once.
   if (!shutdown_latch_.test_and_set(std::memory_order_acquire))
   {
-    bool result_exporter  = true;
-    bool result_reader    = true;
-    bool result_collector = true;
 
-    for (auto &exporter : exporters_)
-    {
-      bool status     = exporter->Shutdown();
-      result_exporter = result_exporter && status;
-    }
-    if (!result_exporter)
-    {
-      OTEL_INTERNAL_LOG_WARN("[MeterContext::Shutdown] Unable to shutdown all metric exporters");
-    }
     for (auto &collector : collectors_)
     {
-      bool status      = std::static_pointer_cast<MetricCollector>(collector)->Shutdown();
-      result_collector = result_reader && status;
+      bool status = std::static_pointer_cast<MetricCollector>(collector)->Shutdown();
+      result      = result && status;
     }
-    if (!result_collector)
+    if (!result)
     {
       OTEL_INTERNAL_LOG_WARN("[MeterContext::Shutdown] Unable to shutdown all metric readers");
     }
-    return_status = result_exporter && result_collector;
   }
-  return return_status;
+  else
+  {
+    OTEL_INTERNAL_LOG_WARN("[MeterContext::Shutdown] Shutdown can be invoked only once.");
+  }
+  return result;
 }
 
 bool MeterContext::ForceFlush(std::chrono::microseconds timeout) noexcept
 {
-  // TODO - Implement timeout logic.
+  bool result = true;
+  // Simultaneous flush not allowed.
   const std::lock_guard<opentelemetry::common::SpinLockMutex> locked(forceflush_lock_);
-  bool result_exporter = true;
-  for (auto &exporter : exporters_)
+  // Convert to nanos to prevent overflow
+  auto timeout_ns = (std::chrono::nanoseconds::max)();
+  if (std::chrono::duration_cast<std::chrono::microseconds>(timeout_ns) > timeout)
   {
-    bool status     = exporter->ForceFlush(timeout);
-    result_exporter = result_exporter && status;
+    timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(timeout);
   }
-  if (!result_exporter)
+
+  auto current_time = std::chrono::system_clock::now();
+  std::chrono::system_clock::time_point expire_time;
+  auto overflow_checker = (std::chrono::system_clock::time_point::max)();
+
+  // check if the expected expire time doesn't overflow.
+  if (overflow_checker - current_time > timeout_ns)
   {
-    OTEL_INTERNAL_LOG_WARN("[MeterContext::ForceFlush] Unable to force-flush all metric exporters");
+    expire_time =
+        current_time + std::chrono::duration_cast<std::chrono::system_clock::duration>(timeout_ns);
   }
-  return result_exporter;
+  else
+  {
+    // overflow happens, reset expire time to max.
+    expire_time = overflow_checker;
+  }
+
+  for (auto &collector : collectors_)
+  {
+    if (!std::static_pointer_cast<MetricCollector>(collector)->ForceFlush(
+            std::chrono::duration_cast<std::chrono::microseconds>(timeout_ns)))
+    {
+      result = false;
+    }
+
+    current_time = std::chrono::system_clock::now();
+
+    if (expire_time >= current_time)
+    {
+      timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(expire_time - current_time);
+    }
+    else
+    {
+      timeout_ns = std::chrono::nanoseconds::zero();
+    }
+  }
+  if (!result)
+  {
+    OTEL_INTERNAL_LOG_WARN("[MeterContext::ForceFlush] Unable to ForceFlush all metric readers");
+  }
+  return result;
 }
 
 }  // namespace metrics
 }  // namespace sdk
 OPENTELEMETRY_END_NAMESPACE
-#endif

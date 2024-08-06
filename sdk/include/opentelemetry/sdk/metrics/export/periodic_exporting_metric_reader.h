@@ -2,15 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
-#ifndef ENABLE_METRICS_PREVIEW
 
-#  include "opentelemetry/sdk/metrics/metric_reader.h"
-#  include "opentelemetry/version.h"
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <thread>
 
-#  include <atomic>
-#  include <chrono>
-#  include <condition_variable>
-#  include <thread>
+#include "opentelemetry/sdk/metrics/export/periodic_exporting_metric_reader_options.h"
+#include "opentelemetry/sdk/metrics/instruments.h"
+#include "opentelemetry/sdk/metrics/metric_reader.h"
+#include "opentelemetry/sdk/metrics/push_metric_exporter.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
@@ -18,32 +23,15 @@ namespace sdk
 namespace metrics
 {
 
-class MetricExporter;
-/**
- * Struct to hold PeriodicExortingMetricReader options.
- */
-
-constexpr std::chrono::milliseconds kExportIntervalMillis = std::chrono::milliseconds(60000);
-constexpr std::chrono::milliseconds kExportTimeOutMillis  = std::chrono::milliseconds(30000);
-struct PeriodicExportingMetricReaderOptions
-{
-
-  /* The time interval between two consecutive exports. */
-  std::chrono::milliseconds export_interval_millis =
-      std::chrono::milliseconds(kExportIntervalMillis);
-
-  /*  how long the export can run before it is cancelled. */
-  std::chrono::milliseconds export_timeout_millis = std::chrono::milliseconds(kExportTimeOutMillis);
-};
-
 class PeriodicExportingMetricReader : public MetricReader
 {
 
 public:
-  PeriodicExportingMetricReader(
-      std::unique_ptr<MetricExporter> exporter,
-      const PeriodicExportingMetricReaderOptions &option,
-      AggregationTemporality aggregation_temporality = AggregationTemporality::kCumulative);
+  PeriodicExportingMetricReader(std::unique_ptr<PushMetricExporter> exporter,
+                                const PeriodicExportingMetricReaderOptions &option);
+
+  AggregationTemporality GetAggregationTemporality(
+      InstrumentType instrument_type) const noexcept override;
 
 private:
   bool OnForceFlush(std::chrono::microseconds timeout) noexcept override;
@@ -52,21 +40,24 @@ private:
 
   void OnInitialized() noexcept override;
 
-  std::unique_ptr<MetricExporter> exporter_;
+  std::unique_ptr<PushMetricExporter> exporter_;
   std::chrono::milliseconds export_interval_millis_;
   std::chrono::milliseconds export_timeout_millis_;
 
   void DoBackgroundWork();
+  bool CollectAndExportOnce();
 
   /* The background worker thread */
   std::thread worker_thread_;
 
   /* Synchronization primitives */
-  std::condition_variable cv_;
-  std::mutex cv_m_;
+  std::atomic<bool> is_force_wakeup_background_worker_{false};
+  std::atomic<uint64_t> force_flush_pending_sequence_{0};
+  std::atomic<uint64_t> force_flush_notified_sequence_{0};
+  std::condition_variable cv_, force_flush_cv_;
+  std::mutex cv_m_, force_flush_m_;
 };
 
 }  // namespace metrics
 }  // namespace sdk
 OPENTELEMETRY_END_NAMESPACE
-#endif

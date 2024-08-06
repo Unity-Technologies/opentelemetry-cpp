@@ -1,3 +1,6 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
 exporters:
   logging:
     loglevel: DEBUG
@@ -8,8 +11,6 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
-        cors_allowed_origins:
-        - '*'
 service:
   pipelines:
     traces:
@@ -18,6 +19,11 @@ service:
       exporters:
       - logging
     logs:
+      receivers:
+      - otlp
+      exporters:
+      - logging
+    metrics:
       receivers:
       - otlp
       exporters:

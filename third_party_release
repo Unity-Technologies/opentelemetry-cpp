@@ -1,10 +1,25 @@
-gRPC=v1.43.2
-thrift=0.14.1
-abseil=20210324.0
-benchmark=v1.5.3
-googletest=release-1.8.0-2523-ga6dfd3ac
-ms-gsl=v1.0.0-393-g6f45293
-nlohmann-json=v3.9.1
-opentelemetry-proto=v0.11.0
-prometheus-cpp=v1.0.0
-vcpkg=2020.04-2702-g5568f110b
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# MAINTAINER
+#
+# This file is used for the CMake build.
+#
+# When changing (add, upgrade, remove) dependencies
+# please update:
+# - the Bazel build, see file
+#   <root>/bazel/repository.bzl
+# - git submodule, see command
+#   git submodule status
+#
+
+gRPC=v1.49.2
+abseil=20240116.1
+benchmark=v1.8.3
+googletest=1.14.0
+ms-gsl=v3.1.0-67-g6f45293
+nlohmann-json=v3.11.3
+opentelemetry-proto=v1.3.1
+opentracing-cpp=v1.6.0
+prometheus-cpp=v1.2.4
+vcpkg=2024.02.14

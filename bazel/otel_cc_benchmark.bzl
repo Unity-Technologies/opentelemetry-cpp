@@ -1,3 +1,6 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
 def otel_cc_benchmark(name, srcs, deps, tags = [""]):
     """
     Creates targets for the benchmark and related targets.
@@ -34,7 +37,7 @@ def otel_cc_benchmark(name, srcs, deps, tags = [""]):
         tools = [":" + name],
         tags = tags + ["benchmark_result", "manual"],
         testonly = True,
-        cmd = "$(location :" + name + (") --benchmark_format=json --benchmark_color=false --benchmark_min_time=.1 &> $@"),
+        cmd = "$(location :" + name + (") --benchmark_format=json --benchmark_color=false --benchmark_min_time=.1s &> $@"),
     )
 
     # This is run as part of "bazel test ..." to smoke-test benchmarks. It's
@@ -43,7 +46,7 @@ def otel_cc_benchmark(name, srcs, deps, tags = [""]):
         name = name + "_smoketest",
         srcs = srcs,
         deps = deps + ["@com_github_google_benchmark//:benchmark"],
-        args = ["--benchmark_min_time=0"],
+        args = ["--benchmark_min_time=1x"],
         tags = tags + ["benchmark"],
         defines = ["BAZEL_BUILD"],
     )

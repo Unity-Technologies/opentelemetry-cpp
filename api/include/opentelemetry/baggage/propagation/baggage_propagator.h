@@ -14,22 +14,34 @@ namespace baggage
 namespace propagation
 {
 
-class BaggagePropagator : public opentelemetry::context::propagation::TextMapPropagator
+class BaggagePropagator : public context::propagation::TextMapPropagator
 {
 public:
-  void Inject(opentelemetry::context::propagation::TextMapCarrier &carrier,
-              const opentelemetry::context::Context &context) noexcept override
+  void Inject(context::propagation::TextMapCarrier &carrier,
+              const context::Context &context) noexcept override
   {
-    auto baggage = opentelemetry::baggage::GetBaggage(context);
-    carrier.Set(kBaggageHeader, baggage->ToHeader());
+    auto baggage = baggage::GetBaggage(context);
+    auto header  = baggage->ToHeader();
+    if (header.size())
+    {
+      carrier.Set(kBaggageHeader, header);
+    }
   }
 
-  context::Context Extract(const opentelemetry::context::propagation::TextMapCarrier &carrier,
-                           opentelemetry::context::Context &context) noexcept override
+  context::Context Extract(const context::propagation::TextMapCarrier &carrier,
+                           context::Context &context) noexcept override
   {
-    nostd::string_view baggage_str = carrier.Get(opentelemetry::baggage::kBaggageHeader);
-    auto baggage                   = opentelemetry::baggage::Baggage::FromHeader(baggage_str);
-    return opentelemetry::baggage::SetBaggage(context, baggage);
+    nostd::string_view baggage_str = carrier.Get(baggage::kBaggageHeader);
+    auto baggage                   = baggage::Baggage::FromHeader(baggage_str);
+
+    if (baggage->ToHeader().size())
+    {
+      return baggage::SetBaggage(context, baggage);
+    }
+    else
+    {
+      return context;
+    }
   }
 
   bool Fields(nostd::function_ref<bool(nostd::string_view)> callback) const noexcept override

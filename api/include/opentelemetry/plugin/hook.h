@@ -3,8 +3,7 @@
 
 #pragma once
 
-#include "opentelemetry/plugin/detail/loader_info.h"
-#include "opentelemetry/plugin/factory.h"
+#include "opentelemetry/nostd/unique_ptr.h"
 #include "opentelemetry/version.h"
 
 #ifdef _WIN32
@@ -17,13 +16,13 @@
  * library and a dynamically loaded plugin. The weak linkage allows for multiple implementations to
  * be linked in without getting multiple definition errors.
  */
-#  define OPENTELEMETRY_DEFINE_PLUGIN_HOOK(X)                                            \
-    extern "C" {                                                                         \
-    extern __declspec(dllexport)                                                         \
-        opentelemetry::plugin::OpenTelemetryHook const OpenTelemetryMakeFactoryImpl;     \
-                                                                                         \
-    __declspec(selectany)                                                                \
-        opentelemetry::plugin::OpenTelemetryHook const OpenTelemetryMakeFactoryImpl = X; \
+#  define OPENTELEMETRY_DEFINE_PLUGIN_HOOK(X)                                   \
+    extern "C" {                                                                \
+    extern __declspec(dllexport) opentelemetry::plugin::OpenTelemetryHook const \
+        OpenTelemetryMakeFactoryImpl;                                           \
+                                                                                \
+    __declspec(selectany) opentelemetry::plugin::OpenTelemetryHook const        \
+        OpenTelemetryMakeFactoryImpl = X;                                       \
     }  // extern "C"
 
 #else
@@ -41,6 +40,10 @@
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace plugin
 {
+
+struct LoaderInfo;
+class FactoryImpl;
+
 using OpenTelemetryHook =
     nostd::unique_ptr<Factory::FactoryImpl> (*)(const LoaderInfo &loader_info,
                                                 nostd::unique_ptr<char[]> &error_message);

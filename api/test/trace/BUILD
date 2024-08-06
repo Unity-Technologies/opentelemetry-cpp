@@ -1,3 +1,6 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
 load("//bazel:otel_cc_benchmark.bzl", "otel_cc_benchmark")
 
 cc_test(
@@ -53,6 +56,7 @@ otel_cc_benchmark(
     srcs = ["span_id_benchmark.cc"],
     tags = [
         "api",
+        "benchmark",
         "test",
         "trace",
     ],
@@ -64,6 +68,7 @@ otel_cc_benchmark(
     srcs = ["span_benchmark.cc"],
     tags = [
         "api",
+        "benchmark",
         "test",
         "trace",
     ],

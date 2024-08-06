@@ -1,3 +1,6 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
 #pragma once
 
 #include <type_traits>
@@ -24,9 +27,9 @@ template <typename T,
           class IsAvailable>
 inline constexpr Trait trait()
 {
-  return IsTriviallyAvailable<T>::value
-             ? Trait::TriviallyAvailable
-             : IsAvailable<T>::value ? Trait::Available : Trait::Unavailable;
+  return IsTriviallyAvailable<T>::value ? Trait::TriviallyAvailable
+         : IsAvailable<T>::value        ? Trait::Available
+                                        : Trait::Unavailable;
 }
 
 inline constexpr Trait common_trait_impl(Trait result)

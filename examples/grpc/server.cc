@@ -1,3 +1,6 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
 #ifdef BAZEL_BUILD
 #  include "examples/grpc/protos/messages.grpc.pb.h"
 #else
@@ -5,7 +8,7 @@
 #endif
 
 #include "opentelemetry/trace/context.h"
-#include "opentelemetry/trace/experimental_semantic_conventions.h"
+#include "opentelemetry/trace/semantic_conventions.h"
 #include "opentelemetry/trace/span_context_kv_iterable_view.h"
 #include "tracer_common.h"
 
@@ -24,7 +27,6 @@
 using grpc::Server;
 using grpc::ServerBuilder;
 using grpc::ServerContext;
-using grpc::ServerWriter;
 using grpc::Status;
 
 using grpc_example::Greeter;
@@ -46,7 +48,7 @@ public:
                const GreetRequest *request,
                GreetResponse *response) override
   {
-    for (auto elem : context->client_metadata())
+    for (const auto &elem : context->client_metadata())
     {
       std::cout << "ELEM: " << elem.first << " " << elem.second << "\n";
     }
@@ -64,20 +66,19 @@ public:
     options.parent   = GetSpan(new_context)->GetContext();
 
     std::string span_name = "GreeterService/Greet";
-    auto span =
-        get_tracer("grpc")->StartSpan(span_name,
-                                      {{OTEL_GET_TRACE_ATTR(AttrRpcSystem), "grpc"},
-                                       {OTEL_GET_TRACE_ATTR(AttrRpcService), "GreeterService"},
-                                       {OTEL_GET_TRACE_ATTR(AttrRpcMethod), "Greet"},
-                                       {OTEL_GET_TRACE_ATTR(AttrRpcGrpcStatusCode), 0}},
-                                      options);
-    auto scope = get_tracer("grpc")->WithActiveSpan(span);
+    auto span             = get_tracer("grpc")->StartSpan(span_name,
+                                                          {{SemanticConventions::kRpcSystem, "grpc"},
+                                                           {SemanticConventions::kRpcService, "GreeterService"},
+                                                           {SemanticConventions::kRpcMethod, "Greet"},
+                                                           {SemanticConventions::kRpcGrpcStatusCode, 0}},
+                                                          options);
+    auto scope            = get_tracer("grpc")->WithActiveSpan(span);
 
     // Fetch and parse whatever HTTP headers we can from the gRPC request.
     span->AddEvent("Processing client attributes");
 
-    std::string req = request->request();
-    std::cout << std::endl << "grpc_client says: " << req << std::endl;
+    const std::string &req = request->request();
+    std::cout << '\n' << "grpc_client says: " << req << '\n';
     std::string message = "The pleasure is mine.";
     // Send response to client
     response->set_response(message);
@@ -100,7 +101,7 @@ void RunServer(uint16_t port)
   builder.AddListeningPort(address, grpc::InsecureServerCredentials());
 
   std::unique_ptr<Server> server(builder.BuildAndStart());
-  std::cout << "Server listening on port: " << address << std::endl;
+  std::cout << "Server listening on port: " << address << '\n';
   server->Wait();
   server->Shutdown();
 }
@@ -108,7 +109,7 @@ void RunServer(uint16_t port)
 
 int main(int argc, char **argv)
 {
-  initTracer();
+  InitTracer();
   constexpr uint16_t default_port = 8800;
   uint16_t port;
   if (argc > 1)
@@ -121,5 +122,6 @@ int main(int argc, char **argv)
   }
 
   RunServer(port);
+  CleanupTracer();
   return 0;
 }

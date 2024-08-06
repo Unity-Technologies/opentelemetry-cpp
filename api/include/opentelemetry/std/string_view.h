@@ -3,15 +3,11 @@
 
 #pragma once
 
-#include "opentelemetry/version.h"
+// IWYU pragma: private, include "opentelemetry/nostd/string_view.h"
 
-#include "opentelemetry/std/utility.h"
-
-#include <cstddef>
-#include <memory>
 #include <string_view>
-#include <utility>
-#include <variant>
+
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 // Standard Type aliases in nostd namespace

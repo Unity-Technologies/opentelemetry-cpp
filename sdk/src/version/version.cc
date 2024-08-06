@@ -1,5 +1,8 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
 // Please DONOT touch this file.
-// Any changes done here would be overwritten during release/build.
+// Any changes done here would be overwritten by pre-commit git hook
 
 #include "opentelemetry/sdk/version/version.h"
 
@@ -8,17 +11,14 @@ namespace sdk
 {
 namespace version
 {
-const int MAJOR_VERSION     = 1;
-const int MINOR_VERSION     = 3;
-const int PATCH_VERSION     = 0;
-const char *PRE_RELEASE     = "";
-const char *BUILD_METADATA  = "";
-const int COUNT_NEW_COMMITS = 0;
-const char *BRANCH          = "";
-const char *COMMIT_HASH     = "";
-const char *SHORT_VERSION   = "";
-const char *FULL_VERSION    = "";
-const char *BUILD_DATE      = "";
+const int major_version    = 1;
+const int minor_version    = 16;
+const int patch_version    = 1;
+const char *pre_release    = "NONE";
+const char *build_metadata = "NONE";
+const char *short_version  = "1.16.1";
+const char *full_version   = "1.16.1-NONE-NONE";
+const char *build_date     = "Wed Jul 17 17:34:38 UTC 2024";
 }  // namespace version
 }  // namespace sdk
 OPENTELEMETRY_END_NAMESPACE

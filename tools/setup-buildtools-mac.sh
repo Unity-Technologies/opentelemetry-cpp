@@ -1,5 +1,10 @@
 #!/bin/sh
 
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+set -e
+
+
 # TODO: it's not ideal experience, but we use have to use brew-provided deps.
 # Sometimes we might run into a situation where a different user takes over
 # control of the brew dirs. That causes the brew update to fail.

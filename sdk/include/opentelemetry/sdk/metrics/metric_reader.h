@@ -2,31 +2,27 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
-#ifndef ENABLE_METRICS_PREVIEW
-#  include "opentelemetry/common/spin_lock_mutex.h"
-#  include "opentelemetry/sdk/common/global_log_handler.h"
-#  include "opentelemetry/sdk/metrics/data/metric_data.h"
-#  include "opentelemetry/sdk/metrics/export/metric_producer.h"
-#  include "opentelemetry/sdk/metrics/instruments.h"
-#  include "opentelemetry/version.h"
 
-#  include <chrono>
-#  include <memory>
+#include <atomic>
+#include <chrono>
+
+#include "opentelemetry/nostd/function_ref.h"
+#include "opentelemetry/sdk/metrics/export/metric_producer.h"
+#include "opentelemetry/sdk/metrics/instruments.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
 {
 namespace metrics
 {
-
 /**
  * MetricReader defines the interface to collect metrics from SDK
  */
 class MetricReader
 {
 public:
-  MetricReader(
-      AggregationTemporality aggregation_temporality = AggregationTemporality::kCumulative);
+  MetricReader();
 
   void SetMetricProducer(MetricProducer *metric_producer);
 
@@ -36,17 +32,29 @@ public:
    */
   bool Collect(nostd::function_ref<bool(ResourceMetrics &metric_data)> callback) noexcept;
 
-  AggregationTemporality GetAggregationTemporality() const noexcept;
+  /**
+   * Get the AggregationTemporality for given Instrument Type for this reader.
+   *
+   * @return AggregationTemporality
+   */
+
+  virtual AggregationTemporality GetAggregationTemporality(
+      InstrumentType instrument_type) const noexcept = 0;
 
   /**
-   * Shutdown the meter reader.
+   * Shutdown the metric reader.
    */
-  bool Shutdown(std::chrono::microseconds timeout = std::chrono::microseconds::max()) noexcept;
+  bool Shutdown(std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept;
 
   /**
    * Force flush the metric read by the reader.
    */
-  bool ForceFlush(std::chrono::microseconds timeout = std::chrono::microseconds::max()) noexcept;
+  bool ForceFlush(std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept;
+
+  /**
+   * Return the status of Metric reader.
+   */
+  bool IsShutdown() const noexcept;
 
   virtual ~MetricReader() = default;
 
@@ -58,15 +66,10 @@ private:
   virtual void OnInitialized() noexcept {}
 
 protected:
-  bool IsShutdown() const noexcept;
-
 private:
   MetricProducer *metric_producer_;
-  AggregationTemporality aggregation_temporality_;
-  mutable opentelemetry::common::SpinLockMutex lock_;
-  bool shutdown_;
+  std::atomic<bool> shutdown_{false};
 };
 }  // namespace metrics
 }  // namespace sdk
 OPENTELEMETRY_END_NAMESPACE
-#endif

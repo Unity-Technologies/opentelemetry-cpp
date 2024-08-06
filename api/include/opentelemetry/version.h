@@ -3,10 +3,18 @@
 
 #pragma once
 
+#include "opentelemetry/common/macros.h"  // IWYU pragma: export
 #include "opentelemetry/detail/preprocessor.h"
 
-#define OPENTELEMETRY_ABI_VERSION_NO 1
-#define OPENTELEMETRY_VERSION "1.3.0"
+#ifndef OPENTELEMETRY_ABI_VERSION_NO
+#  define OPENTELEMETRY_ABI_VERSION_NO 1
+#endif
+
+#define OPENTELEMETRY_VERSION "1.16.1"
+#define OPENTELEMETRY_VERSION_MAJOR 1
+#define OPENTELEMETRY_VERSION_MINOR 16
+#define OPENTELEMETRY_VERSION_PATCH 1
+
 #define OPENTELEMETRY_ABI_VERSION OPENTELEMETRY_STRINGIFY(OPENTELEMETRY_ABI_VERSION_NO)
 
 // clang-format off

@@ -1,4 +1,9 @@
 #!/bin/bash
+
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+set -e
+
 DIR="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 WORKSPACE_ROOT=$DIR/..
 pushd $WORKSPACE_ROOT

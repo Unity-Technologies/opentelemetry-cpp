@@ -54,7 +54,7 @@ TEST(SpanData, Set)
   data.SetStatus(trace_api::StatusCode::kOk, "description");
   data.SetStartTime(now);
   data.SetDuration(std::chrono::nanoseconds(1000000));
-  data.SetAttribute("attr1", (int64_t)314159);
+  data.SetAttribute("attr1", static_cast<int64_t>(314159));
   data.AddEvent("event1", now);
 
   ASSERT_EQ(data.GetTraceId(), trace_id);
@@ -96,8 +96,8 @@ TEST(SpanData, EventAttributes)
 TEST(SpanData, Resources)
 {
   SpanData data;
-  auto resource   = opentelemetry::sdk::resource::Resource::Create({});
-  auto input_attr = resource.GetAttributes();
+  auto resource          = opentelemetry::sdk::resource::Resource::Create({});
+  const auto &input_attr = resource.GetAttributes();
   data.SetResource(resource);
   auto output_attr = data.GetResource().GetAttributes();
   EXPECT_EQ(input_attr, output_attr);

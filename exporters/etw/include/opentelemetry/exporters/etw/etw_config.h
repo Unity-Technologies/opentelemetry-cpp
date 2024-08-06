@@ -11,6 +11,9 @@
 #include "opentelemetry/trace/span_id.h"
 
 #include "opentelemetry/exporters/etw/etw_provider.h"
+#include "opentelemetry/exporters/etw/etw_tail_sampler.h"
+#include "opentelemetry/sdk/trace/id_generator.h"
+#include "opentelemetry/sdk/trace/sampler.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace exporter
@@ -20,8 +23,9 @@ namespace etw
 /**
  * @brief TelemetryProvider Options passed via SDK API.
  */
-using TelemetryProviderOptions =
-    std::map<std::string, nostd::variant<std::string, uint64_t, float, bool>>;
+using TelemetryProviderOptions = std::map<
+    std::string,
+    nostd::variant<std::string, uint64_t, float, bool, std::map<std::string, std::string>>>;
 
 /**
  * @brief TelemetryProvider runtime configuration class. Internal representation
@@ -38,6 +42,9 @@ typedef struct
   bool enableAutoParent;  // Start new spans as children of current active span, Not used for Logs
   ETWProvider::EventFormat
       encoding;  // Event encoding to use for this provider (TLD, MsgPack, XML, etc.).
+  bool enableTableNameMappings;  // Map instrumentation scope name to table name with
+                                 // `tableNameMappings`
+  std::map<std::string, std::string> tableNameMappings;
 } TelemetryProviderConfiguration;
 
 /**
@@ -144,6 +151,33 @@ template <class T>
 TelemetryProviderConfiguration &GetConfiguration(T &t)
 {
   return t.config_;
+}
+
+/**
+ * @brief Utility function to obtain etw::TracerProvider.id_generator_
+ */
+template <class T>
+sdk::trace::IdGenerator &GetIdGenerator(T &t)
+{
+  return *t.id_generator_;
+}
+
+/**
+ * @brief Utility function to obtain etw::TracerProvider.sampler_
+ */
+template <class T>
+sdk::trace::Sampler &GetSampler(T &t)
+{
+  return *t.sampler_;
+}
+
+/**
+ * @brief Utility function to obtain etw::TracerProvider.tail_sampler_
+ */
+template <class T>
+TailSampler &GetTailSampler(T &t)
+{
+  return *t.tail_sampler_;
 }
 
 /**

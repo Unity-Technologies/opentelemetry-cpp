@@ -1,11 +1,17 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
 #pragma once
 
 #include <utility>
 
 #include "opentelemetry/version.h"
 
-#define OPENTELEMETRY_RETURN(...) \
-  noexcept(noexcept(__VA_ARGS__))->decltype(__VA_ARGS__) { return __VA_ARGS__; }
+#define OPENTELEMETRY_RETURN(...)                        \
+  noexcept(noexcept(__VA_ARGS__))->decltype(__VA_ARGS__) \
+  {                                                      \
+    return __VA_ARGS__;                                  \
+  }
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace nostd

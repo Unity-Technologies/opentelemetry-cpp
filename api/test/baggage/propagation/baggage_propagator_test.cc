@@ -62,7 +62,7 @@ TEST(BaggagePropagatorTest, ExtractAndInjectBaggage)
       {"invalid_header", ""},                                 // invalid header
       {very_large_baggage_header, ""}};  // baggage header larger than allowed size.
 
-  for (auto baggage : baggages)
+  for (const auto &baggage : baggages)
   {
     BaggageCarrierTest carrier1;
     carrier1.headers_[baggage::kBaggageHeader.data()] = baggage.first;
@@ -80,5 +80,34 @@ TEST(BaggagePropagatorTest, ExtractAndInjectBaggage)
     });
     EXPECT_EQ(fields.size(), 1);
     EXPECT_EQ(fields[0], baggage::kBaggageHeader.data());
+  }
+}
+
+TEST(BaggagePropagatorTest, InjectEmptyHeader)
+{
+  // Test Missing baggage from context
+  BaggageCarrierTest carrier;
+  context::Context ctx = context::Context{};
+  format.Inject(carrier, ctx);
+  EXPECT_EQ(carrier.headers_.find(baggage::kBaggageHeader), carrier.headers_.end());
+
+  {
+    // Test empty baggage in context
+    BaggageCarrierTest carrier1;
+    carrier1.headers_[baggage::kBaggageHeader.data()] = "";
+    context::Context ctx1                             = context::Context{};
+    context::Context ctx2                             = format.Extract(carrier1, ctx1);
+    format.Inject(carrier, ctx2);
+    EXPECT_EQ(carrier.headers_.find(baggage::kBaggageHeader), carrier.headers_.end());
+  }
+  {
+    // Invalid baggage in context
+    BaggageCarrierTest carrier1;
+    carrier1.headers_[baggage::kBaggageHeader.data()] = "InvalidBaggageData";
+    context::Context ctx1                             = context::Context{};
+    context::Context ctx2                             = format.Extract(carrier1, ctx1);
+
+    format.Inject(carrier, ctx2);
+    EXPECT_EQ(carrier.headers_.find(baggage::kBaggageHeader), carrier.headers_.end());
   }
 }

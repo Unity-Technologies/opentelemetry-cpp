@@ -1,13 +1,16 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-#ifdef ENABLE_LOGS_PREVIEW
+#include <chrono>
+#include <memory>
+#include <utility>
+#include <vector>
 
-#  include "opentelemetry/sdk/logs/logger_context.h"
-#  include "opentelemetry/sdk/logs/multi_log_processor.h"
-
-#  include <memory>
-#  include <vector>
+#include "opentelemetry/sdk/logs/logger_context.h"
+#include "opentelemetry/sdk/logs/multi_log_record_processor.h"
+#include "opentelemetry/sdk/logs/processor.h"
+#include "opentelemetry/sdk/resource/resource.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
@@ -15,19 +18,20 @@ namespace sdk
 namespace logs
 {
 
-LoggerContext::LoggerContext(std::vector<std::unique_ptr<LogProcessor>> &&processors,
-                             opentelemetry::sdk::resource::Resource resource) noexcept
+LoggerContext::LoggerContext(std::vector<std::unique_ptr<LogRecordProcessor>> &&processors,
+                             const opentelemetry::sdk::resource::Resource &resource) noexcept
     : resource_(resource),
-      processor_(std::unique_ptr<LogProcessor>(new MultiLogProcessor(std::move(processors))))
+      processor_(
+          std::unique_ptr<LogRecordProcessor>(new MultiLogRecordProcessor(std::move(processors))))
 {}
 
-void LoggerContext::AddProcessor(std::unique_ptr<LogProcessor> processor) noexcept
+void LoggerContext::AddProcessor(std::unique_ptr<LogRecordProcessor> processor) noexcept
 {
-  auto multi_processor = static_cast<MultiLogProcessor *>(processor_.get());
+  auto multi_processor = static_cast<MultiLogRecordProcessor *>(processor_.get());
   multi_processor->AddProcessor(std::move(processor));
 }
 
-LogProcessor &LoggerContext::GetProcessor() const noexcept
+LogRecordProcessor &LoggerContext::GetProcessor() const noexcept
 {
   return *processor_;
 }
@@ -44,11 +48,10 @@ bool LoggerContext::ForceFlush(std::chrono::microseconds timeout) noexcept
 
 bool LoggerContext::Shutdown(std::chrono::microseconds timeout) noexcept
 {
-  return processor_->ForceFlush(timeout);
+  return processor_->Shutdown(timeout);
 }
 
 }  // namespace logs
 }  // namespace sdk
 
 OPENTELEMETRY_END_NAMESPACE
-#endif

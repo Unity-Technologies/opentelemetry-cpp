@@ -1,11 +1,17 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tracer.h"
-#include "opentelemetry/nostd/unique_ptr.h"
-
 #include <iostream>
-#include <memory>
+#include <new>
+#include <string>
+#include <utility>
+
+#include "opentelemetry/common/attribute_value.h"
+#include "opentelemetry/common/timestamp.h"
+#include "opentelemetry/context/context_value.h"
+#include "opentelemetry/trace/span_context.h"
+#include "opentelemetry/trace/span_metadata.h"
+#include "tracer.h"
 
 namespace nostd   = opentelemetry::nostd;
 namespace common  = opentelemetry::common;
@@ -27,7 +33,7 @@ public:
     std::cout << "StartSpan: " << name << "\n";
   }
 
-  ~Span() { std::cout << "~Span\n"; }
+  ~Span() override { std::cout << "~Span\n"; }
 
   // opentelemetry::trace::Span
   void SetAttribute(nostd::string_view /*name*/,
@@ -44,6 +50,18 @@ public:
                 common::SystemTimestamp /*timestamp*/,
                 const common::KeyValueIterable & /*attributes*/) noexcept override
   {}
+
+  void AddEvent(nostd::string_view /*name*/,
+                const common::KeyValueIterable & /*attributes*/) noexcept override
+  {}
+
+#if OPENTELEMETRY_ABI_VERSION_NO >= 2
+  void AddLink(const trace::SpanContext & /* target */,
+               const common::KeyValueIterable & /* attrs */) noexcept override
+  {}
+
+  void AddLinks(const trace::SpanContextKeyValueIterable & /* links */) noexcept override {}
+#endif
 
   void SetStatus(trace::StatusCode /*code*/, nostd::string_view /*description*/) noexcept override
   {}

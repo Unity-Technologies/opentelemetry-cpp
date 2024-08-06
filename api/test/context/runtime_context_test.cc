@@ -4,6 +4,9 @@
 #include "opentelemetry/context/runtime_context.h"
 #include "opentelemetry/context/context.h"
 
+#include <algorithm>
+#include <map>
+
 #include <gtest/gtest.h>
 
 using namespace opentelemetry;
@@ -11,7 +14,7 @@ using namespace opentelemetry;
 // Tests that GetCurrent returns the current context
 TEST(RuntimeContextTest, GetCurrent)
 {
-  std::map<std::string, context::ContextValue> map_test = {{"test_key", (int64_t)123}};
+  std::map<std::string, context::ContextValue> map_test = {{"test_key", static_cast<int64_t>(123)}};
   context::Context test_context                         = context::Context(map_test);
   auto old_context = context::RuntimeContext::Attach(test_context);
   EXPECT_EQ(context::RuntimeContext::GetCurrent(), test_context);
@@ -20,7 +23,7 @@ TEST(RuntimeContextTest, GetCurrent)
 // Tests that detach resets the context to the previous context
 TEST(RuntimeContextTest, Detach)
 {
-  std::map<std::string, context::ContextValue> map_test = {{"test_key", (int64_t)123}};
+  std::map<std::string, context::ContextValue> map_test = {{"test_key", static_cast<int64_t>(123)}};
   context::Context test_context                         = context::Context(map_test);
   context::Context foo_context                          = context::Context(map_test);
 
@@ -35,7 +38,7 @@ TEST(RuntimeContextTest, Detach)
 // Tests that detach returns false when the wrong context is provided
 TEST(RuntimeContextTest, DetachWrongContext)
 {
-  std::map<std::string, context::ContextValue> map_test = {{"test_key", (int64_t)123}};
+  std::map<std::string, context::ContextValue> map_test = {{"test_key", static_cast<int64_t>(123)}};
   context::Context test_context                         = context::Context(map_test);
   auto test_context_token = context::RuntimeContext::Attach(test_context);
   EXPECT_TRUE(context::RuntimeContext::Detach(*test_context_token));
@@ -45,7 +48,7 @@ TEST(RuntimeContextTest, DetachWrongContext)
 // Tests that the ThreadLocalContext can handle three attached contexts
 TEST(RuntimeContextTest, ThreeAttachDetach)
 {
-  std::map<std::string, context::ContextValue> map_test = {{"test_key", (int64_t)123}};
+  std::map<std::string, context::ContextValue> map_test = {{"test_key", static_cast<int64_t>(123)}};
   context::Context test_context                         = context::Context(map_test);
   context::Context foo_context                          = context::Context(map_test);
   context::Context other_context                        = context::Context(map_test);
@@ -63,9 +66,10 @@ TEST(RuntimeContextTest, ThreeAttachDetach)
 // RuntimeContext::SetValue method.
 TEST(RuntimeContextTest, SetValueRuntimeContext)
 {
-  context::Context foo_context  = context::Context("foo_key", (int64_t)596);
-  auto old_context_token        = context::RuntimeContext::Attach(foo_context);
-  context::Context test_context = context::RuntimeContext::SetValue("test_key", (int64_t)123);
+  context::Context foo_context = context::Context("foo_key", static_cast<int64_t>(596));
+  auto old_context_token       = context::RuntimeContext::Attach(foo_context);
+  context::Context test_context =
+      context::RuntimeContext::SetValue("test_key", static_cast<int64_t>(123));
   EXPECT_EQ(nostd::get<int64_t>(test_context.GetValue("test_key")), 123);
   EXPECT_EQ(nostd::get<int64_t>(test_context.GetValue("foo_key")), 596);
 }
@@ -75,9 +79,9 @@ TEST(RuntimeContextTest, SetValueRuntimeContext)
 // RuntimeContext::SetValue method.
 TEST(RuntimeContextTest, SetValueOtherContext)
 {
-  context::Context foo_context = context::Context("foo_key", (int64_t)596);
+  context::Context foo_context = context::Context("foo_key", static_cast<int64_t>(596));
   context::Context test_context =
-      context::RuntimeContext::SetValue("test_key", (int64_t)123, &foo_context);
+      context::RuntimeContext::SetValue("test_key", static_cast<int64_t>(123), &foo_context);
   EXPECT_EQ(nostd::get<int64_t>(test_context.GetValue("test_key")), 123);
   EXPECT_EQ(nostd::get<int64_t>(test_context.GetValue("foo_key")), 596);
 }
@@ -86,7 +90,7 @@ TEST(RuntimeContextTest, SetValueOtherContext)
 // passed in string and the current Runtime Context
 TEST(RuntimeContextTest, GetValueRuntimeContext)
 {
-  context::Context foo_context = context::Context("foo_key", (int64_t)596);
+  context::Context foo_context = context::Context("foo_key", static_cast<int64_t>(596));
   auto old_context_token       = context::RuntimeContext::Attach(foo_context);
   EXPECT_EQ(nostd::get<int64_t>(context::RuntimeContext::GetValue("foo_key")), 596);
 }
@@ -95,7 +99,7 @@ TEST(RuntimeContextTest, GetValueRuntimeContext)
 // passed in string and the passed in context
 TEST(RuntimeContextTest, GetValueOtherContext)
 {
-  context::Context foo_context = context::Context("foo_key", (int64_t)596);
+  context::Context foo_context = context::Context("foo_key", static_cast<int64_t>(596));
   EXPECT_EQ(nostd::get<int64_t>(context::RuntimeContext::GetValue("foo_key", &foo_context)), 596);
 }
 
@@ -109,15 +113,17 @@ TEST(RuntimeContextTest, DetachOutOfOrder)
   indices.push_back(3);
 
   std::vector<context::Context> contexts;
+  contexts.reserve(indices.size());
   for (auto i : indices)
   {
-    contexts.push_back(context::Context("index", (int64_t)i));
+    contexts.push_back(context::Context("index", static_cast<int64_t>(i)));
   }
 
   do
   {
     std::vector<nostd::unique_ptr<context::Token>> tokens;
 
+    tokens.reserve(contexts.size());
     for (auto &c : contexts)
     {
       tokens.push_back(context::RuntimeContext::Attach(c));

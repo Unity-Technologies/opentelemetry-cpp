@@ -93,7 +93,7 @@ this, Google Test also allows us to easily integrate code coverage tools such as
 ## Integration and Usage
 
 One of the base requirements to build and use Google Test from a source package
-are to use either Bazel or CMake; the other is a C++11-standard-compliant
+are to use either Bazel or CMake; the other is a C++14-standard-compliant
 compiler like GCC or Clang.
 
 ### Bazel
@@ -109,7 +109,7 @@ and dependencies. Along with a `BUILD` file, a `WORKSPACE` file exists that
 identifies the directory it resides in as a bazel workspace. In the OTel C++
 repository, the SDK unit tests using the Google Test framework to ensure code
 functionality. In the
-[BUILD](https://github.com/open-telemetry/opentelemetry-cpp/tree/master/sdk/test/trace)
+[BUILD](/sdk/test/trace)
 file for trace tests, there are six different targets, each corresponding to a
 different unit test. An example target taken from this file is shown below.
 
