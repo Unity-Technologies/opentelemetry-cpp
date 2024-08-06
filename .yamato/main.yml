@@ -1,0 +1,61 @@
+build_windows:
+  name: Build OpenTelemetry CPP (Windows x64)
+  agent:
+    image: build-system/unity-win10-22H2-vs2022-neutron:v2.2400237
+    type: Unity::VM
+    flavor: b1.xlarge
+  variables:
+    OPENTELEMETRY_CPP_VERSION: v1.16.1
+    BUILDTOOLS_VERSION: vs2022
+    OPENTELEMETRY_CPP_CONFIG: Release
+    OPENTELEMETRY_CPP_LIBTYPE: x64-windows-static-md
+    VISUAL_STUDIO_PATH: "C:\\Program Files\\Microsoft Visual Studio\\2022\\Professional"
+  commands:
+    - command: |
+        $ErrorActionPreference = "Stop"
+        ./.yamato/scripts/build.ps1
+  interpreter: powershell
+  metadata:
+    Job Maintainers: "#team-pes"
+  artifacts:
+    opentelemetry-cpp-win-amd64:
+      paths:
+        - opentelemetry-cpp-win-amd64.zip
+build_linux:
+  name: Build OpenTelemetry CPP (Linux x64)
+  agent:
+    image: slough-ops/ubuntu-24.04-base:latest
+    type: Unity::VM
+    flavor: b1.xlarge
+  variables:
+    OPENTELEMETRY_CPP_VERSION: v1.16.1
+    OPENTELEMETRY_CPP_CONFIG: Release
+    OPENTELEMETRY_CPP_LIBTYPE: x64-linux
+  commands:
+    - command: |
+        ./.yamato/scripts/build.sh
+  metadata:
+    Job Maintainers: "#team-pes"
+  artifacts:
+    opentelemetry-cpp-lin-amd64:
+      paths:
+        - opentelemetry-cpp-lin-amd64.zip
+deploy:
+  name: Deploy OpenTelemetry CPP
+  agent:
+    image: slough-ops/ubuntu-24.04-base:latest
+    flavor: b1.small
+    type: Unity::VM
+  commands:
+    - |
+      set -euxo pipefail
+      curl -sSo StevedoreUpload "$STEVEDORE_UPLOAD_TOOL_LINUX_X64_URL"
+      chmod +x StevedoreUpload
+      ./StevedoreUpload --version-len=12 --repo=testing --version="$OPENTELEMETRY_CPP_VERSION" ./opentelemetry-cpp-lin-amd64.zip ./opentelemetry-cpp-win-amd64.zip
+  skip_checkout: true
+  dependencies:
+    - path: .yamato/main.yml#build_linux
+    - path: .yamato/main.yml#build_windows
+  variables:
+    OPENTELEMETRY_CPP_VERSION: v1.16.1
+    STEVE_REPO: testing
