@@ -15,9 +15,10 @@ $env:PATH = "$vswhere_dir;$cmake_dir;$vcpkg_dir;${env:PATH}"
 
 # Set Visual Studio environment variables from vcvarsall.bat
 # ===================================
-& $env:ComSpec /c "`"%VISUAL_STUDIO_PATH%\VC\Auxiliary\Build\vcvarsall.bat`" %OPENTELEMETRY_CPP_LIBARCH% & set" | ConvertFrom-String -Delimiter '=' | ForEach-Object {
+& $env:ComSpec /c "`"%VISUAL_STUDIO_PATH%\VC\Auxiliary\Build\vcvarsall.bat`" %OPENTELEMETRY_CPP_LIBARCH% 10.0.20348.0 -vcvars_ver=14.34.17.4 & set" | ConvertFrom-String -Delimiter '=' | ForEach-Object {
     New-Item -Name $_.P1 -value $_.P2 -ItemType Variable -Path Env: -Force
 }
+if ($LASTEXITCODE -ne 0) { throw "error while running vcvarsall.bat" }
 
 # Build/Test/Package OpenTelemetry CPP
 # ===================================
