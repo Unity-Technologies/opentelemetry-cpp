@@ -6,10 +6,10 @@ build_pr:
 #    - .yamato/build.yml#build_linux_clang_x64
     - .yamato/build.yml#build_linux_clang_vcpkg_x64
     - .yamato/build.yml#build_windows_x64
-#    - .yamato/build.yml#build_macos_x64
+    - .yamato/build.yml#build_macos_x64
 #    - .yamato/build.yml#build_linux_arm64
     - .yamato/build.yml#build_windows_arm64
-#    - .yamato/build.yml#build_macos_arm64
+    - .yamato/build.yml#build_macos_arm64
 
 #deprecated_build_linux:
 #  name: (Deprecated) Build OpenTelemetry CPP (Linux x64)
@@ -419,76 +419,84 @@ build_linux_clang_vcpkg_x64:
         - opentelemetry-cpp-lin-x64.zip
 
 
-#build_macos_x64:
-#  name: Build OpenTelemetry CPP (macOS x64)
-#  agent:
-#    image: slough-ops/macos-14-xcode:v0.0.2-1332463
-#    type: Unity::VM::osx
-#    flavor: b1.xlarge
-#  variables:
-#    OPENTELEMETRY_CPP_CONFIG: Release
-#    OPENTELEMETRY_CPP_LIBARCH: x64
-#    CXX_STANDARD: 17
-#  commands:
-#    - command: |
-#        set -euxo pipefail
-#        git submodule update --recursive --init --jobs `getconf _NPROCESSORS_ONLN`
-#      name: Update submodules
-#    - command: |
-#        set -euxo pipefail
-#        ./.yamato/scripts/prepare_vm_mac.sh
-#      name: Prepare VM to build OpenTelemetry CPP
-#    - command: |
-#        set -euxo pipefail
-#        ./.yamato/scripts/build.sh
-#      name: Build OpenTelemetry CPP
-#    - command: |
-#        set -euxo pipefail
-#        ./.yamato/scripts/package_mac.sh
-#      name: Package OpenTelemetry CPP
-#  source:
-#    files:
-#      sparse_checkout_rules: .yamato/.sparse-checkout-rules/opentelemetry-cpp_mac.patterns
-#  metadata:
-#    Job Maintainers: "#team-pes"
-#  artifacts:
-#    opentelemetry-cpp-macos-x64:
-#      paths:
-#        - opentelemetry-cpp-mac-x64.zip
-#build_macos_arm64:
-#  name: Build OpenTelemetry CPP (macOS arm64)
-#  agent:
-#    image: slough-ops/macos-14-xcode:v0.0.2-1332463
-#    type: Unity::VM::osx
-#    flavor: m1.mac
-#    model: M1
-#  variables:
-#    OPENTELEMETRY_CPP_CONFIG: Release
-#    OPENTELEMETRY_CPP_LIBARCH: arm64
-#    CXX_STANDARD: 17
-#  commands:
-#    - command: |
-#        set -euxo pipefail
-#        git submodule update --recursive --init --jobs `getconf _NPROCESSORS_ONLN`
-#      name: Update submodules
-#    - command: |
-#        set -euxo pipefail
-#        ./.yamato/scripts/prepare_vm_mac.sh
-#      name: Prepare VM to build OpenTelemetry CPP
-#    - command: |
-#        set -euxo pipefail
-#        ./.yamato/scripts/build.sh
-#      name: Build OpenTelemetry CPP
-#    - command: |
-#        set -euxo pipefail
-#        ./.yamato/scripts/package_mac.sh
-#      name: Package OpenTelemetry CPP
-#  source:
-#    files:
-#      sparse_checkout_rules: .yamato/.sparse-checkout-rules/opentelemetry-cpp_mac.patterns
-#  metadata:
-#    Job Maintainers: "#team-pes"
-#  artifacts:
-#    opentelemetry-cpp-macos-arm64:
-#      paths:
-#        - opentelemetry-cpp-mac-arm64.zip
+build_macos_x64:
+  name: Build OpenTelemetry CPP (macOS x64 - VCPKG)
+  agent:
+    image: slough-ops/macos-14-xcode:v0.0.2-1332463
+    type: Unity::VM::osx
+    flavor: b1.xlarge
+  variables:
+    OPENTELEMETRY_CPP_CONFIG: Release
+    OPENTELEMETRY_CPP_LIBARCH: x64
+    CXX_STANDARD: 17
+  commands:
+    - command: |
+        set -euxo pipefail
+        # Setup build tools
+        # ===================================
+        # https://github.com/Homebrew/homebrew-core/blob/7a574d89134ceee38d055c8f5ad3c93706bc6b3b/Formula/o/opentelemetry-cpp.rb
+        brew install cmake
+        git submodule update --recursive --init --jobs `getconf _NPROCESSORS_ONLN`
+      name: Update submodules
+    - command: |
+        set -euxo pipefail
+        ./.yamato/scripts/prepare_vm_mac_vcpkg.sh
+      name: Prepare VM to build OpenTelemetry CPP
+    - command: |
+        set -euxo pipefail
+        ./.yamato/scripts/build_vcpkg.sh
+      name: Build OpenTelemetry CPP
+    - command: |
+        set -euxo pipefail
+        ./.yamato/scripts/prepare_vm_mac_vcpkg.sh
+      name: Package OpenTelemetry CPP
+  source:
+    files:
+      sparse_checkout_rules: .yamato/.sparse-checkout-rules/opentelemetry-cpp_mac.patterns
+  metadata:
+    Job Maintainers: "#team-pes"
+  artifacts:
+    opentelemetry-cpp-macos-x64:
+      paths:
+        - opentelemetry-cpp-mac-x64.zip
+build_macos_arm64:
+  name: Build OpenTelemetry CPP (macOS arm64 - VCPKG)
+  agent:
+    image: slough-ops/macos-14-xcode:v0.0.2-1332463
+    type: Unity::VM::osx
+    flavor: m1.mac
+    model: M1
+  variables:
+    OPENTELEMETRY_CPP_CONFIG: Release
+    OPENTELEMETRY_CPP_LIBARCH: arm64
+    CXX_STANDARD: 17
+  commands:
+    - command: |
+        set -euxo pipefail
+        # Setup build tools
+        # ===================================
+        # https://github.com/Homebrew/homebrew-core/blob/7a574d89134ceee38d055c8f5ad3c93706bc6b3b/Formula/o/opentelemetry-cpp.rb
+        brew install cmake
+        git submodule update --recursive --init --jobs `getconf _NPROCESSORS_ONLN`
+      name: Update submodules
+    - command: |
+        set -euxo pipefail
+        ./.yamato/scripts/prepare_vm_mac_vcpkg.sh
+      name: Prepare VM to build OpenTelemetry CPP
+    - command: |
+        set -euxo pipefail
+        ./.yamato/scripts/build_vcpkg.sh
+      name: Build OpenTelemetry CPP
+    - command: |
+        set -euxo pipefail
+        ./.yamato/scripts/prepare_vm_mac_vcpkg.sh
+      name: Package OpenTelemetry CPP
+  source:
+    files:
+      sparse_checkout_rules: .yamato/.sparse-checkout-rules/opentelemetry-cpp_mac.patterns
+  metadata:
+    Job Maintainers: "#team-pes"
+  artifacts:
+    opentelemetry-cpp-macos-arm64:
+      paths:
+        - opentelemetry-cpp-mac-arm64.zip

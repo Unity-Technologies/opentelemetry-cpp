@@ -12,6 +12,8 @@ deploy:
       ls 
       ./StevedoreUpload \
           --version-len=${#OPENTELEMETRY_CPP_VERSION} --repo=$STEVE_REPO --version="$OPENTELEMETRY_CPP_VERSION" \
+          opentelemetry-cpp-mac-x64.zip \
+          opentelemetry-cpp-mac-arm64.zip \          
           opentelemetry-cpp-lin-x64.zip \
           opentelemetry-cpp-win-arm64.zip \
           opentelemetry-cpp-win-x64.zip
@@ -20,6 +22,9 @@ deploy:
     - .yamato/build.yml#build_windows_arm64
     - .yamato/build.yml#build_windows_x64
     - .yamato/build.yml#build_linux_clang_vcpkg_x64
+    - .yamato/build.yml#build_macos_x64
+    - .yamato/build.yml#build_macos_arm64
+
   variables:
     OPENTELEMETRY_CPP_VERSION: v1.16.1
     STEVE_REPO: testing
