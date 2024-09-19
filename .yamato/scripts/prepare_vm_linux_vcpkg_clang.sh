@@ -2,16 +2,6 @@
 
 set -euxo pipefail
 
-export DEBIAN_FRONTEND=noninteractive
-sudo -E apt-get update -y
-sudo -E apt remove needrestart -y #refer: https://github.com/actions/runner-images/issues/9937
-
-# Install CMake and build tools
-# ===================================
-sudo -E apt-get install -y zip bc
-sudo -E ./ci/setup_ci_environment.sh
-sudo -E ./tools/setup-cmake.sh
-
 # Install vcpkg
 # ===================================
 export VCPKG_ROOT="$PWD/tools/vcpkg"
@@ -19,12 +9,13 @@ export VCPKG_CMAKE="$PWD/tools/vcpkg/scripts/buildsystems/vcpkg.cmake"
 pushd $VCPKG_ROOT
 bash $PWD/scripts/bootstrap.sh -disableMetrics
 export PATH=$PWD:$PATH
+#git submodule update --remote
+./vcpkg update
 ./vcpkg integrate install
 popd # VCPKG_ROOT
 
 # bee_backend requires clang compiler
 # ===================================
-sudo -E apt-get install -y zip
 export BEE_INTERNAL_STEVEDORE_7ZA=
 .yamato/bee steve internal-unpack public 7za-linux-x64/904b71ca3f79_0d0f2cf7ea23d00d2ba5d151c735ef9f03ed99a9e451c6dcf3a198cbedf69861.zip 7z
 export BEE_INTERNAL_STEVEDORE_7ZA=7z/7za

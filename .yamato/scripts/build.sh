@@ -22,11 +22,13 @@ declare -a otel_build_options=(
     "-DWITH_DEPRECATED_SDK_FACTORY=OFF"                         # Don't compile deprecated SDK Factory
     #"-DWITH_ABI_VERSION_1=OFF"                                  # ABI version 1 (on)
     #"-DWITH_ABI_VERSION_2=ON"                                   # EXPERIMENTAL: ABI version 2 preview (off)
+    #"-DVCPKG_TARGET_TRIPLET=$OPENTELEMETRY_CPP_LIBTYPE"         # Use static linked system dynamically linked libraries
+    #"-DCMAKE_TOOLCHAIN_FILE=$VCPKG_CMAKE"                       # Use vcpkg toolchain file
     "-DBUILD_TESTING=OFF"                                       # Whether to enable tests (on), makes the build faster and it does not work with x64-windows-static-md
     "-DWITH_EXAMPLES=OFF"                                       # Whether to build examples (on), makes the build faster and it does not work with x64-windows-static-md
 )
-cmake -S . -B build -A $OPENTELEMETRY_CPP_LIBARCH ${otel_build_options[@]}
+cmake -S . -B build ${otel_build_options[@]}
 # -GNinja
-cmake --build build --parallel `getconf _NPROCESSORS_ONLN` --config $OPENTELEMETRY_CPP_CONFIG --target all_build
+cmake --build build --parallel `getconf _NPROCESSORS_ONLN` --config $OPENTELEMETRY_CPP_CONFIG --target all
 ctest --build-config $OPENTELEMETRY_CPP_CONFIG --test-dir build
 cmake --install build --prefix $install_dir --config $OPENTELEMETRY_CPP_CONFIG

@@ -4,7 +4,7 @@ build_pr:
 #    - .yamato/build.yml#build_linux_x64
 #    - .yamato/build.yml#build_linux_vcpkg_x64
 #    - .yamato/build.yml#build_linux_clang_x64
-#    - .yamato/build.yml#build_linux_clang_vcpkg_x64
+    - .yamato/build.yml#build_linux_clang_vcpkg_x64
     - .yamato/build.yml#build_windows_x64
 #    - .yamato/build.yml#build_macos_x64
 #    - .yamato/build.yml#build_linux_arm64
@@ -376,45 +376,49 @@ build_windows_arm64:
 #      paths:
 #        - opentelemetry-cpp-linvcpkg-x64.zip
 #
-#build_linux_clang_vcpkg_x64:
-#  name: Build OpenTelemetry CPP (Linux x64 - VCPKG/Clang)
-#  agent:
-#    image: build-system/bee-ubuntu-18.04-clang:v2.1127153
-#    type: Unity::VM
-#    flavor: b1.xlarge
-#  variables:
-#    OPENTELEMETRY_CPP_CONFIG: Release
-#    OPENTELEMETRY_CPP_LIBARCH: x64
-#    CXX_STANDARD: 17
-#    OPENTELEMETRY_CPP_LIBTYPE: x64-linux
-#  commands:
-#    - command: |
-#        set -euxo pipefail
-#        git submodule update --recursive --init --jobs `getconf _NPROCESSORS_ONLN`
-#      name: Update submodules
-#    - command: |
-#        set -euxo pipefail
-#        ./.yamato/scripts/prepare_vm_linux_vcpkg_clang.sh
-#      name: Prepare VM to build OpenTelemetry CPP
-#    - command: |
-#        set -euxo pipefail
-#        ./.yamato/scripts/build_clang_vcpkg.sh
-#      name: Build OpenTelemetry CPP
-#    - command: |
-#        set -euxo pipefail
-#        ./.yamato/scripts/package_linux_vcpkg.sh
-#      name: Package OpenTelemetry CPP
-#  source:
-#    files:
-#      sparse_checkout_rules: .yamato/.sparse-checkout-rules/opentelemetry-cpp_linux.patterns
-#  metadata:
-#    Job Maintainers: "#team-pes"
-#  artifacts:
-#    opentelemetry-cpp-linux-x64:
-#      paths:
-#        - opentelemetry-cpp-linclangvcpkg-x64.zip
-#
-#
+build_linux_clang_vcpkg_x64:
+  name: Build OpenTelemetry CPP (Linux x64 - VCPKG/Clang)
+  agent:
+    image: build-system/bee-ubuntu-18.04-clang:v2.1127153
+    type: Unity::VM
+    flavor: b1.xlarge
+  variables:
+    OPENTELEMETRY_CPP_CONFIG: Release
+    OPENTELEMETRY_CPP_LIBARCH: x64
+    CXX_STANDARD: 17
+    OPENTELEMETRY_CPP_LIBTYPE: x64-linux
+  commands:
+    - command: |
+        set -euxo pipefail
+        export DEBIAN_FRONTEND=noninteractive
+        sudo -E apt-get update -y
+        sudo -E apt remove needrestart -y #refer: https://github.com/actions/runner-images/issues/9937
+        sudo -E apt-get install -y zip pkg-config build-essential cmake
+        git submodule update --recursive --init --jobs `getconf _NPROCESSORS_ONLN`
+      name: Update submodules
+    - command: |
+        set -euxo pipefail
+        ./.yamato/scripts/prepare_vm_linux_vcpkg_clang.sh
+      name: Prepare VM to build OpenTelemetry CPP
+    - command: |
+        set -euxo pipefail
+        ./.yamato/scripts/build_clang_vcpkg.sh
+      name: Build OpenTelemetry CPP
+    - command: |
+        set -euxo pipefail
+        ./.yamato/scripts/package_linux_vcpkg.sh
+      name: Package OpenTelemetry CPP
+  source:
+    files:
+      sparse_checkout_rules: .yamato/.sparse-checkout-rules/opentelemetry-cpp_linux.patterns
+  metadata:
+    Job Maintainers: "#team-pes"
+  artifacts:
+    opentelemetry-cpp-linux-x64:
+      paths:
+        - opentelemetry-cpp-lin-x64.zip
+
+
 #build_macos_x64:
 #  name: Build OpenTelemetry CPP (macOS x64)
 #  agent:
