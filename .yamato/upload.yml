@@ -9,19 +9,19 @@ deploy:
       set -euxo pipefail
       curl -sSo StevedoreUpload "$STEVEDORE_UPLOAD_TOOL_LINUX_X64_URL"
       chmod +x StevedoreUpload
-      ls 
+      ls
       ./StevedoreUpload \
           --version-len=${#OPENTELEMETRY_CPP_VERSION} --repo=$STEVE_REPO --version="$OPENTELEMETRY_CPP_VERSION" \
-          opentelemetry-cpp-mac-x64.zip \
-          opentelemetry-cpp-mac-arm64.zip \          
-          opentelemetry-cpp-lin-x64.zip \
-          opentelemetry-cpp-win-arm64.zip \
-          opentelemetry-cpp-win-x64.zip
+          opentelemetry-cpp-x64-osx.zip \
+          opentelemetry-cpp-arm64-osx.zip \          
+          opentelemetry-cpp-x64-linux.zip \
+          opentelemetry-cpp-x64-windows.zip \
+          opentelemetry-cpp-arm64-windows.zip
   skip_checkout: true
   dependencies:
     - .yamato/build.yml#build_windows_arm64
     - .yamato/build.yml#build_windows_x64
-    - .yamato/build.yml#build_linux_clang_vcpkg_x64
+    - .yamato/build.yml#build_linux_x64
     - .yamato/build.yml#build_macos_x64
     - .yamato/build.yml#build_macos_arm64
 

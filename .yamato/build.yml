@@ -45,9 +45,9 @@ build_windows_x64:
   metadata:
     Job Maintainers: "#team-pes"
   artifacts:
-    opentelemetry-cpp-windows-x64:
+    opentelemetry-cpp:
       paths:
-        - opentelemetry-cpp-win-x64.zip
+        - opentelemetry-cpp-x64-windows.zip
 build_windows_arm64:
   name: Build OpenTelemetry CPP (Windows arm64)
   agent:
@@ -86,9 +86,9 @@ build_windows_arm64:
   metadata:
     Job Maintainers: "#team-pes"
   artifacts:
-    opentelemetry-cpp-windows-arm64:
+    opentelemetry-cpp:
       paths:
-        - opentelemetry-cpp-win-arm64.zip
+        - opentelemetry-cpp-arm64-windows.zip
 build_linux_x64:
   name: Build OpenTelemetry CPP (Linux x64)
   agent:
@@ -122,9 +122,9 @@ build_linux_x64:
   metadata:
     Job Maintainers: "#team-pes"
   artifacts:
-    opentelemetry-cpp-linux-x64:
+    opentelemetry-cpp:
       paths:
-        - opentelemetry-cpp-lin-x64.zip
+        - opentelemetry-cpp-x64-linux.zip
 build_macos_x64:
   name: Build OpenTelemetry CPP (macOS x64)
   agent:
@@ -133,18 +133,18 @@ build_macos_x64:
     flavor: b1.xlarge
   variables:
     OPENTELEMETRY_CPP_CONFIG: Release
-    OPENTELEMETRY_CPP_LIBARCH: x64
     OPENTELEMETRY_CPP_LIBTYPE: x64-osx
     CXX_STANDARD: 17
   commands:
     - command: |
         set -euxo pipefail
+        brew update
         brew install zip pkg-config cmake
         git submodule update --recursive --init --jobs `getconf _NPROCESSORS_ONLN`
       name: Update submodules
     - command: |
         set -euxo pipefail
-        ./.yamato/scripts/prepare_vm_mac_vcpkg.sh
+        ./.yamato/scripts/prepare_vm_vcpkg.sh
       name: Prepare VM to build OpenTelemetry CPP
     - command: |
         set -euxo pipefail
@@ -159,9 +159,9 @@ build_macos_x64:
   metadata:
     Job Maintainers: "#team-pes"
   artifacts:
-    opentelemetry-cpp-macos-x64:
+    opentelemetry-cpp:
       paths:
-        - opentelemetry-cpp-mac-x64.zip
+        - opentelemetry-cpp-x64-osx.zip
 build_macos_arm64:
   name: Build OpenTelemetry CPP (macOS arm64 - VCPKG)
   agent:
@@ -171,7 +171,6 @@ build_macos_arm64:
     model: M1
   variables:
     OPENTELEMETRY_CPP_CONFIG: Release
-    OPENTELEMETRY_CPP_LIBARCH: arm64
     OPENTELEMETRY_CPP_LIBTYPE: arm64-osx
     CXX_STANDARD: 17
   commands:
@@ -182,7 +181,7 @@ build_macos_arm64:
       name: Update submodules
     - command: |
         set -euxo pipefail
-        ./.yamato/scripts/prepare_vm_mac_vcpkg.sh
+        ./.yamato/scripts/prepare_vm_vcpkg.sh
       name: Prepare VM to build OpenTelemetry CPP
     - command: |
         set -euxo pipefail
@@ -197,6 +196,6 @@ build_macos_arm64:
   metadata:
     Job Maintainers: "#team-pes"
   artifacts:
-    opentelemetry-cpp-macos-arm64:
+    opentelemetry-cpp:
       paths:
-        - opentelemetry-cpp-mac-arm64.zip
+        - opentelemetry-cpp-arm64-osx.zip
