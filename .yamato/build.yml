@@ -107,6 +107,7 @@ build_linux_x64:
         sudo -E apt-get install -y zip pkg-config build-essential cmake
         git submodule update --recursive --init --jobs `getconf _NPROCESSORS_ONLN`
       name: Update submodules
+    - command: |
         set -euxo pipefail
         ./.yamato/scripts/prepare_vm_clang.sh
       name: Prepare VM to build OpenTelemetry CPP
@@ -118,6 +119,7 @@ build_linux_x64:
         set -euxo pipefail
         ./.yamato/scripts/package.sh
       name: Package OpenTelemetry CPP
+  source:
     files:
       sparse_checkout_rules: .yamato/.sparse-checkout-rules/opentelemetry-cpp_linux.patterns
   metadata:
@@ -165,7 +167,7 @@ build_macos_x64:
       paths:
         - opentelemetry-cpp-x64-osx.zip
 build_macos_arm64:
-  name: Build OpenTelemetry CPP (macOS arm64 - VCPKG)
+  name: Build OpenTelemetry CPP (macOS arm64)
   agent:
     image: slough-ops/macos-14-arm64-xcode:v0.0.5
     type: Unity::VM::osx
