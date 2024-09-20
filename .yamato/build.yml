@@ -436,7 +436,7 @@ build_macos_x64:
         # Setup build tools
         # ===================================
         # https://github.com/Homebrew/homebrew-core/blob/7a574d89134ceee38d055c8f5ad3c93706bc6b3b/Formula/o/opentelemetry-cpp.rb
-        brew install cmake
+        brew install zip pkg-config cmake
         git submodule update --recursive --init --jobs `getconf _NPROCESSORS_ONLN`
       name: Update submodules
     - command: |
@@ -478,7 +478,7 @@ build_macos_arm64:
         # Setup build tools
         # ===================================
         # https://github.com/Homebrew/homebrew-core/blob/7a574d89134ceee38d055c8f5ad3c93706bc6b3b/Formula/o/opentelemetry-cpp.rb
-        brew install cmake
+        brew install zip pkg-config cmake
         git submodule update --recursive --init --jobs `getconf _NPROCESSORS_ONLN`
       name: Update submodules
     - command: |
