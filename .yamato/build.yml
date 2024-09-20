@@ -422,7 +422,7 @@ build_linux_clang_vcpkg_x64:
 build_macos_x64:
   name: Build OpenTelemetry CPP (macOS x64 - VCPKG)
   agent:
-    image: slough-ops/macos-14-xcode:v0.0.2-1332463
+    image: slough-ops/macos-14-xcode:v0.0.3
     type: Unity::VM::osx
     flavor: b1.xlarge
   variables:
@@ -462,7 +462,7 @@ build_macos_x64:
 build_macos_arm64:
   name: Build OpenTelemetry CPP (macOS arm64 - VCPKG)
   agent:
-    image: slough-ops/macos-14-xcode:v0.0.2-1332463
+    image: slough-ops/macos-14-arm64-xcode:v0.0.5
     type: Unity::VM::osx
     flavor: m1.mac
     model: M1
