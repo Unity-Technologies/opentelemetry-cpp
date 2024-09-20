@@ -6,7 +6,6 @@ build_pr:
     - .yamato/build.yml#build_linux_x64
     - .yamato/build.yml#build_macos_x64
     - .yamato/build.yml#build_macos_arm64
-
 build_windows_x64:
   name: Build OpenTelemetry CPP (Windows x64)
   agent:
@@ -204,3 +203,29 @@ build_macos_arm64:
     opentelemetry-cpp-arm64-osx:
       paths:
         - opentelemetry-cpp-arm64-osx.zip
+
+deploy:
+  name: Deploy OpenTelemetry CPP (stevedore)
+  agent:
+    image: slough-ops/ubuntu-24.04-base:latest
+    flavor: b1.small
+    type: Unity::VM
+  commands:
+    - |
+      set -euxo pipefail
+      curl -sSo StevedoreUpload "$STEVEDORE_UPLOAD_TOOL_LINUX_X64_URL"
+      chmod +x StevedoreUpload
+      ls
+      ./StevedoreUpload \
+          --version-len=${#OPENTELEMETRY_CPP_VERSION} --repo=$STEVE_REPO --version="$OPENTELEMETRY_CPP_VERSION" \
+          opentelemetry-cpp-x64-osx.zip \
+          opentelemetry-cpp-arm64-osx.zip \
+          opentelemetry-cpp-x64-linux.zip \
+          opentelemetry-cpp-x64-windows.zip \
+          opentelemetry-cpp-arm64-windows.zip
+  skip_checkout: true
+  variables:
+    OPENTELEMETRY_CPP_VERSION: v1.16.1
+    STEVE_REPO: testing
+  dependencies:
+    - .yamato/build.yml#build_pr
