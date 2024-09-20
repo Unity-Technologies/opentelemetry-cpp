@@ -1,10 +1,10 @@
 build_pr:
   name: Build OpenTelemetry CPP (PR)
   dependencies:
-    - .yamato/build.yml#build_linux_x64
-    - .yamato/build.yml#build_windows_x64
-    - .yamato/build.yml#build_macos_x64
     - .yamato/build.yml#build_windows_arm64
+    - .yamato/build.yml#build_windows_x64
+    - .yamato/build.yml#build_linux_x64
+    - .yamato/build.yml#build_macos_x64
     - .yamato/build.yml#build_macos_arm64
 
 build_windows_x64:
@@ -45,7 +45,7 @@ build_windows_x64:
   metadata:
     Job Maintainers: "#team-pes"
   artifacts:
-    opentelemetry-cpp:
+    opentelemetry-cpp-x64-windows:
       paths:
         - opentelemetry-cpp-x64-windows.zip
 build_windows_arm64:
@@ -86,7 +86,7 @@ build_windows_arm64:
   metadata:
     Job Maintainers: "#team-pes"
   artifacts:
-    opentelemetry-cpp:
+    opentelemetry-cpp-arm64-windows:
       paths:
         - opentelemetry-cpp-arm64-windows.zip
 build_linux_x64:
@@ -117,12 +117,13 @@ build_linux_x64:
     - command: |
         set -euxo pipefail
         ./.yamato/scripts/package.sh
+      name: Package OpenTelemetry CPP
     files:
       sparse_checkout_rules: .yamato/.sparse-checkout-rules/opentelemetry-cpp_linux.patterns
   metadata:
     Job Maintainers: "#team-pes"
   artifacts:
-    opentelemetry-cpp:
+    opentelemetry-cpp-x64-linux:
       paths:
         - opentelemetry-cpp-x64-linux.zip
 build_macos_x64:
@@ -153,13 +154,14 @@ build_macos_x64:
     - command: |
         set -euxo pipefail
         ./.yamato/scripts/package.sh
+      name: Package OpenTelemetry CPP
   source:
     files:
       sparse_checkout_rules: .yamato/.sparse-checkout-rules/opentelemetry-cpp_mac.patterns
   metadata:
     Job Maintainers: "#team-pes"
   artifacts:
-    opentelemetry-cpp:
+    opentelemetry-cpp-x64-osx:
       paths:
         - opentelemetry-cpp-x64-osx.zip
 build_macos_arm64:
@@ -190,12 +192,13 @@ build_macos_arm64:
     - command: |
         set -euxo pipefail
         ./.yamato/scripts/package.sh
+      name: Package OpenTelemetry CPP
   source:
     files:
       sparse_checkout_rules: .yamato/.sparse-checkout-rules/opentelemetry-cpp_mac.patterns
   metadata:
     Job Maintainers: "#team-pes"
   artifacts:
-    opentelemetry-cpp:
+    opentelemetry-cpp-arm64-osx:
       paths:
         - opentelemetry-cpp-arm64-osx.zip
