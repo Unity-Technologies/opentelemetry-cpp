@@ -379,7 +379,7 @@ build_windows_arm64:
 build_linux_clang_vcpkg_x64:
   name: Build OpenTelemetry CPP (Linux x64 - VCPKG/Clang)
   agent:
-    image: build-system/bee-ubuntu-18.04-clang:v2.1127153
+    image: slough-ops/ubuntu-22.04-base:v0.0.5
     type: Unity::VM
     flavor: b1.xlarge
   variables:
