@@ -429,6 +429,7 @@ build_macos_x64:
     OPENTELEMETRY_CPP_CONFIG: Release
     OPENTELEMETRY_CPP_LIBARCH: x64
     CXX_STANDARD: 17
+    OPENTELEMETRY_CPP_LIBTYPE: x64-osx
   commands:
     - command: |
         set -euxo pipefail
@@ -470,6 +471,7 @@ build_macos_arm64:
     OPENTELEMETRY_CPP_CONFIG: Release
     OPENTELEMETRY_CPP_LIBARCH: arm64
     CXX_STANDARD: 17
+    OPENTELEMETRY_CPP_LIBTYPE: arm64-osx
   commands:
     - command: |
         set -euxo pipefail
