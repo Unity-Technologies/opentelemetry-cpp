@@ -35,7 +35,7 @@ build_windows_x64:
       name: Build OpenTelemetry CPP
     - command: |
         $ErrorActionPreference = "Stop"
-        ./.yamato/scripts/package.ps1
+        ./.yamato/scripts/package.ps1 opentelemetry-cpp-win-x64.zip
       name: Package OpenTelemetry CPP
   interpreter: powershell
   source:
@@ -46,7 +46,7 @@ build_windows_x64:
   artifacts:
     opentelemetry-cpp-x64-windows:
       paths:
-        - opentelemetry-cpp-x64-windows.zip
+        - opentelemetry-cpp-win-x64.zip
 build_windows_arm64:
   name: Build OpenTelemetry CPP (Windows arm64)
   agent:
@@ -76,7 +76,7 @@ build_windows_arm64:
       name: Build OpenTelemetry CPP
     - command: |
         $ErrorActionPreference = "Stop"
-        ./.yamato/scripts/package.ps1
+        ./.yamato/scripts/package.ps1 opentelemetry-cpp-win-arm64.zip
       name: Package OpenTelemetry CPP
   interpreter: powershell
   source:
@@ -87,7 +87,7 @@ build_windows_arm64:
   artifacts:
     opentelemetry-cpp-arm64-windows:
       paths:
-        - opentelemetry-cpp-arm64-windows.zip
+        - opentelemetry-cpp-win-arm64.zip
 build_linux_x64:
   name: Build OpenTelemetry CPP (Linux x64)
   agent:
@@ -116,7 +116,7 @@ build_linux_x64:
       name: Build OpenTelemetry CPP
     - command: |
         set -euxo pipefail
-        ./.yamato/scripts/package.sh
+        ./.yamato/scripts/package.sh opentelemetry-cpp-lin-x64.zip
       name: Package OpenTelemetry CPP
   source:
     files:
@@ -126,7 +126,7 @@ build_linux_x64:
   artifacts:
     opentelemetry-cpp-x64-linux:
       paths:
-        - opentelemetry-cpp-x64-linux.zip
+        - opentelemetry-cpp-lin-x64.zip
 build_macos_x64:
   name: Build OpenTelemetry CPP (macOS x64)
   agent:
@@ -154,7 +154,7 @@ build_macos_x64:
       name: Build OpenTelemetry CPP
     - command: |
         set -euxo pipefail
-        ./.yamato/scripts/package.sh
+        ./.yamato/scripts/package.sh opentelemetry-cpp-osx-x64.zip
       name: Package OpenTelemetry CPP
   source:
     files:
@@ -164,7 +164,7 @@ build_macos_x64:
   artifacts:
     opentelemetry-cpp-x64-osx:
       paths:
-        - opentelemetry-cpp-x64-osx.zip
+        - opentelemetry-cpp-osx-x64.zip
 build_macos_arm64:
   name: Build OpenTelemetry CPP (macOS arm64)
   agent:
@@ -192,7 +192,7 @@ build_macos_arm64:
       name: Build OpenTelemetry CPP
     - command: |
         set -euxo pipefail
-        ./.yamato/scripts/package.sh
+        ./.yamato/scripts/package.sh opentelemetry-cpp-osx-arm64.zip
       name: Package OpenTelemetry CPP
   source:
     files:
@@ -202,7 +202,7 @@ build_macos_arm64:
   artifacts:
     opentelemetry-cpp-arm64-osx:
       paths:
-        - opentelemetry-cpp-arm64-osx.zip
+        - opentelemetry-cpp-osx-arm64.zip
 
 deploy:
   name: Deploy OpenTelemetry CPP (stevedore)
@@ -218,11 +218,11 @@ deploy:
       ls
       ./StevedoreUpload \
           --version-len=${#OPENTELEMETRY_CPP_VERSION} --repo=$STEVE_REPO --version="$OPENTELEMETRY_CPP_VERSION" \
-          opentelemetry-cpp-x64-osx.zip \
-          opentelemetry-cpp-arm64-osx.zip \
-          opentelemetry-cpp-x64-linux.zip \
-          opentelemetry-cpp-x64-windows.zip \
-          opentelemetry-cpp-arm64-windows.zip
+          opentelemetry-cpp-osx-x64.zip \
+          opentelemetry-cpp-osx-arm64.zip \
+          opentelemetry-cpp-lin-x64.zip \
+          opentelemetry-cpp-win-x64.zip \
+          opentelemetry-cpp-win-arm64.zip
   skip_checkout: true
   variables:
     OPENTELEMETRY_CPP_VERSION: v1.16.1
