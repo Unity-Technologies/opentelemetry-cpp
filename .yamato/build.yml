@@ -130,7 +130,7 @@ build_linux_x64:
 build_macos_x64:
   name: Build OpenTelemetry CPP (macOS x64)
   agent:
-    image: slough-ops/macos-14-xcode:v0.0.3
+    image: build-system/bee-macos-10.15-xcode:v2.1874696
     type: Unity::VM::osx
     flavor: b1.xlarge
   variables:
