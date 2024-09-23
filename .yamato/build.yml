@@ -175,6 +175,8 @@ build_macos_arm64:
     OPENTELEMETRY_CPP_CONFIG: Release
     OPENTELEMETRY_CPP_LIBTYPE: arm64-osx
     CXX_STANDARD: 17
+    CMAKE_OSX_ARCHITECTURES: arm64
+    ARCH: arm64
   commands:
     - command: |
         set -euxo pipefail
