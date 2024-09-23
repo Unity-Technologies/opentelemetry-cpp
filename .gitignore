@@ -82,8 +82,4 @@ functional/cert/server_cert_b-key.pem
 functional/cert/unreadable.pem
 
 # Extras
-7z/
-TC/
-sysroot/
-clang
-clang++
+*.zip
