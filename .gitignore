@@ -46,6 +46,8 @@ MODULE.bazel.lock
 # Output directories
 /out
 /out.*
+/package
+
 # Indicator that the tools were deployed
 .buildtools
 
@@ -80,3 +82,6 @@ functional/cert/server_cert_b.csr
 functional/cert/server_cert_b.pem
 functional/cert/server_cert_b-key.pem
 functional/cert/unreadable.pem
+
+# Extras
+*.zip
