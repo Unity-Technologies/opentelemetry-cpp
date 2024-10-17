@@ -1,11 +1,16 @@
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$extra_release = mkdir "out/Release/lib/extra" -force
-$extra_debug = mkdir "out/Debug/lib/extra" -force
-cp LICENSE out/LICENSE.md
-cp -R "./tools/vcpkg/installed/${env:OPENTELEMETRY_CPP_LIBTYPE}/lib/*.*" $extra_release -verbose
-cp -R "./tools/vcpkg/installed/${env:OPENTELEMETRY_CPP_LIBTYPE}/debug/lib/*.*" $extra_debug -verbose
+mkdir "package/include" -force | Out-Null
+mkdir "package/lib/${env:OPENTELEMETRY_CPP_LIBTYPE}/release/extra" -force | Out-Null
+mkdir "package/lib/${env:OPENTELEMETRY_CPP_LIBTYPE}/debug/extra" -force | Out-Null
+
+cp LICENSE package/LICENSE.md
+cp -R "out/Release/include/." "package/include/"
+cp -R "out/Release/lib/." "package/lib/${env:OPENTELEMETRY_CPP_LIBTYPE}/release/"
+cp -R "tools/vcpkg/installed/${env:OPENTELEMETRY_CPP_LIBTYPE}/lib/." "package/lib/${env:OPENTELEMETRY_CPP_LIBTYPE}/release/extra/"
+cp -R "out/Debug/lib/." "package/lib/${env:OPENTELEMETRY_CPP_LIBTYPE}/debug/"
+cp -R "tools/vcpkg/installed/${env:OPENTELEMETRY_CPP_LIBTYPE}/debug/lib/." "package/lib/${env:OPENTELEMETRY_CPP_LIBTYPE}/debug/extra/"
 
 push-location "out"
 Compress-Archive -Path ./* -DestinationPath "../$($args[0])"
