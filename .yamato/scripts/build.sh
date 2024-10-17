@@ -7,11 +7,13 @@ export PATH=$VCPKG_ROOT:$PATH
 
 # Build/Test/Package OpenTelemetry CPP
 # ===================================
-install_dir="$PWD/out"
+build_config=$1
+build_dir="$PWD/build/$build_config"
+install_dir="$PWD/out/$build_config"
 declare -a otel_build_options=(
     # see CI "cmake.maintainer.sync.test"
     #"-DCMAKE_INSTALL_PREFIX=$install_dir"                      # Only for ninja builds
-    "-DCMAKE_BUILD_TYPE=$OPENTELEMETRY_CPP_CONFIG"              # Build only release
+    "-DCMAKE_BUILD_TYPE=$build_config"                          # Build only release
     #"-DWITH_STL=CXX17"                                          # Which version of the Standard Library for C++ to use, Matching bee_backend version
     "-DWITH_ABSEIL=ON"                                          # Don't use STL (mutually exclusive with WITH_STL), use Abseil instead
     "-DCMAKE_CXX_STANDARD=$CXX_STANDARD"                        # Use C++ Standard Language Version 17, Matching bee_backend language version
@@ -31,9 +33,9 @@ declare -a otel_build_options=(
     "-DBUILD_TESTING=OFF"                                       # Whether to enable tests (on), makes the build faster and it does not work with x64-windows-static-md
     "-DWITH_EXAMPLES=OFF"                                       # Whether to build examples (on), makes the build faster and it does not work with x64-windows-static-md
 )
-mkdir -p build
-cmake -S . -B build ${otel_build_options[@]}
+mkdir -p $build_dir
+cmake -S . -B $build_dir ${otel_build_options[@]}
 # -GNinja
-cmake --build build --parallel `getconf _NPROCESSORS_ONLN` --config $OPENTELEMETRY_CPP_CONFIG --target all
-ctest --build-config $OPENTELEMETRY_CPP_CONFIG --test-dir build
-cmake --install build --prefix $install_dir --config $OPENTELEMETRY_CPP_CONFIG
+cmake --build $build_dir --parallel `getconf _NPROCESSORS_ONLN` --config $build_config --target all
+ctest --build-config $build_config --test-dir $build_dir
+cmake --install $build_dir --prefix $install_dir --config $build_config
