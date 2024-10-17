@@ -12,6 +12,6 @@ cp -R "tools/vcpkg/installed/${env:OPENTELEMETRY_CPP_LIBTYPE}/lib/*" "package/li
 cp -R "out/Debug/lib/*" "package/lib/debug/"
 cp -R "tools/vcpkg/installed/${env:OPENTELEMETRY_CPP_LIBTYPE}/debug/lib/*" "package/lib/debug/extra/"
 
-push-location "out"
+push-location "package"
 Compress-Archive -Path ./* -DestinationPath "../$($args[0])"
-Pop-Location # out
+Pop-Location # package
