@@ -42,9 +42,9 @@ This was tested on build-system/bee-windows-10-vs2019:v2.2208263
 git clone https://github.com/Unity-Technologies/opentelemetry-cpp.git
 cd opentelemetry-cpp
 $env:OPENTELEMETRY_CPP_LIBTYPE="x64-windows-static-md"
-OPENTELEMETRY_CPP_LIBARCH: x64
+$env:OPENTELEMETRY_CPP_LIBARCH="x64"
 $env:CXX_STANDARD="17"
-$env:VISUAL_STUDIO_PATH=""C:\Program Files\Microsoft Visual Studio\2019\\Professional"
+$env:VISUAL_STUDIO_PATH="C:\Program Files\Microsoft Visual Studio\2019\\Professional"
 & git submodule update --recursive --init --jobs $env:NUMBER_OF_PROCESSORS
 ./.yamato/scripts/prepare_vm_windows.ps1
 ./.yamato/scripts/build.ps1 Release
