@@ -51,3 +51,7 @@
 
 tags
 .cache/clangd/*
+
+# Additional Unity's definitions
+/package
+*.zip

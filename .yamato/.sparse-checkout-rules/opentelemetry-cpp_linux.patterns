@@ -1,0 +1,5 @@
+.yamato/scripts/build_clang.sh
+.yamato/scripts/build.sh
+.yamato/scripts/package.sh
+.yamato/scripts/prepare_vm_clang.sh
+.yamato/scripts/prepare_vm_vcpkg.sh
