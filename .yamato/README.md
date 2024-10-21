@@ -18,7 +18,6 @@ This was tested on slough-ops/ubuntu-22.04-base:v0.0.5
 ```
 git clone https://github.com/Unity-Technologies/opentelemetry-cpp.git
 cd opentelemetry-cpp
-export OPENTELEMETRY_CPP_CONFIG=Release
 export OPENTELEMETRY_CPP_LIBTYPE=x64-linux
 export CXX_STANDARD=17
 export DEBIAN_FRONTEND=noninteractive
@@ -26,8 +25,9 @@ sudo -E apt-get update -y
 sudo -E apt-get install -y zip pkg-config build-essential cmake
 git submodule update --recursive --init --jobs `getconf _NPROCESSORS_ONLN`
 ./.yamato/scripts/prepare_vm_clang.sh
-./.yamato/scripts/build_clang.sh
-./.yamato/scripts/package.sh
+./.yamato/scripts/build_clang.sh Release
+./.yamato/scripts/build_clang.sh Debug
+./.yamato/scripts/package.sh opentelemetry-cpp-linux-x64.zip
 ```
 
 ## Windows
@@ -41,15 +41,15 @@ This was tested on build-system/bee-windows-10-vs2019:v2.2208263
 ```
 git clone https://github.com/Unity-Technologies/opentelemetry-cpp.git
 cd opentelemetry-cpp
-$env:OPENTELEMETRY_CPP_CONFIG="Release"
 $env:OPENTELEMETRY_CPP_LIBTYPE="x64-windows-static-md"
-OPENTELEMETRY_CPP_LIBARCH: x64
+$env:OPENTELEMETRY_CPP_LIBARCH="x64"
 $env:CXX_STANDARD="17"
-$env:VISUAL_STUDIO_PATH=""C:\Program Files\Microsoft Visual Studio\2019\\Professional"
+$env:VISUAL_STUDIO_PATH="C:\Program Files\Microsoft Visual Studio\2019\\Professional"
 & git submodule update --recursive --init --jobs $env:NUMBER_OF_PROCESSORS
 ./.yamato/scripts/prepare_vm_windows.ps1
-./.yamato/scripts/build.ps1
-./.yamato/scripts/package.ps1
+./.yamato/scripts/build.ps1 Release
+./.yamato/scripts/build.ps1 Debug
+./.yamato/scripts/package.ps1 opentelemetry-cpp-win-x64.zip
 ```
 
 ## Mac
@@ -61,13 +61,13 @@ This was tested on slough-ops/macos-14-xcode:v0.0.3
 ```
 git clone https://github.com/Unity-Technologies/opentelemetry-cpp.git
 cd opentelemetry-cpp
-export OPENTELEMETRY_CPP_CONFIG=Release
 export OPENTELEMETRY_CPP_LIBTYPE=x64-osx
 export CXX_STANDARD=17
 brew update
 brew install zip pkg-config cmake
 git submodule update --recursive --init --jobs `getconf _NPROCESSORS_ONLN`
 ./.yamato/scripts/prepare_vm_vcpkg.sh
-./.yamato/scripts/build.sh
-./.yamato/scripts/package.sh
+./.yamato/scripts/build.sh Release
+./.yamato/scripts/build.sh Debug
+./.yamato/scripts/package.sh opentelemetry-cpp-osx-x64.zip
 ```

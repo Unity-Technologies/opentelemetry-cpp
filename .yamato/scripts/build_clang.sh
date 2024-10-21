@@ -4,4 +4,4 @@ set -euxo pipefail
 export CC=/tmp/clang
 export CXX=/tmp/clang++ 
 
-./.yamato/scripts/build.sh
+./.yamato/scripts/build.sh $1

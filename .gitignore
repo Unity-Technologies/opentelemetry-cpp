@@ -46,6 +46,8 @@ MODULE.bazel.lock
 # Output directories
 /out
 /out.*
+/package
+
 # Indicator that the tools were deployed
 .buildtools
 
