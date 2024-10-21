@@ -1,0 +1,24 @@
+deploy:
+  name: Deploy OpenTelemetry CPP (stevedore)
+  agent:
+    image: slough-ops/ubuntu-24.04-base:latest
+    flavor: b1.small
+    type: Unity::VM
+  commands:
+    - |
+      set -euxo pipefail
+      curl -sSo StevedoreUpload "$STEVEDORE_UPLOAD_TOOL_LINUX_X64_URL"
+      chmod +x StevedoreUpload
+      ls 
+      ./StevedoreUpload \
+          --version-len=${#OPENTELEMETRY_CPP_VERSION} --repo=$STEVE_REPO --version="$OPENTELEMETRY_CPP_VERSION" \
+          opentelemetry-cpp-win-arm64.zip \
+          opentelemetry-cpp-win-x64.zip
+  skip_checkout: true
+  dependencies:
+    - .yamato/build.yml#build_windows_arm64
+    - .yamato/build.yml#build_windows_x64
+  variables:
+    OPENTELEMETRY_CPP_VERSION: v1.16.1
+    STEVE_REPO: testing
+
