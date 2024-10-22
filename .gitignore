@@ -80,3 +80,7 @@ functional/cert/server_cert_b.csr
 functional/cert/server_cert_b.pem
 functional/cert/server_cert_b-key.pem
 functional/cert/unreadable.pem
+
+# Unity extra
+/package
+/*.zip

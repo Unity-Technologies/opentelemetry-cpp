@@ -14,7 +14,6 @@ build_windows_x64:
     flavor: b1.xlarge
   variables:
     BUILDTOOLS_VERSION: vs2019
-    OPENTELEMETRY_CPP_CONFIG: Release
     OPENTELEMETRY_CPP_LIBTYPE: x64-windows-static-md
     OPENTELEMETRY_CPP_LIBARCH: x64
     VISUAL_STUDIO_PATH: "C:\\Program Files\\Microsoft Visual Studio\\2019\\Professional"
@@ -31,7 +30,8 @@ build_windows_x64:
       name: Prepare VM to build OpenTelemetry CPP
     - command: |
         $ErrorActionPreference = "Stop"
-        ./.yamato/scripts/build.ps1
+        ./.yamato/scripts/build.ps1 Debug
+        ./.yamato/scripts/build.ps1 Release
       name: Build OpenTelemetry CPP
     - command: |
         $ErrorActionPreference = "Stop"
@@ -55,7 +55,6 @@ build_windows_arm64:
     flavor: b1.xlarge
   variables:
     BUILDTOOLS_VERSION: vs2022
-    OPENTELEMETRY_CPP_CONFIG: Release
     OPENTELEMETRY_CPP_LIBTYPE: arm64-windows-static-md
     OPENTELEMETRY_CPP_LIBARCH: arm64
     VISUAL_STUDIO_PATH: "C:\\Program Files\\Microsoft Visual Studio\\2022\\Professional"
@@ -72,7 +71,8 @@ build_windows_arm64:
       name: Prepare VM to build OpenTelemetry CPP
     - command: |
         $ErrorActionPreference = "Stop"
-        ./.yamato/scripts/build.ps1
+        ./.yamato/scripts/build.ps1 Debug
+        ./.yamato/scripts/build.ps1 Release
       name: Build OpenTelemetry CPP
     - command: |
         $ErrorActionPreference = "Stop"
@@ -95,7 +95,6 @@ build_linux_x64:
     type: Unity::VM
     flavor: b1.xlarge
   variables:
-    OPENTELEMETRY_CPP_CONFIG: Release
     OPENTELEMETRY_CPP_LIBTYPE: x64-linux
     CXX_STANDARD: 17
   commands:
@@ -112,7 +111,8 @@ build_linux_x64:
       name: Prepare VM to build OpenTelemetry CPP
     - command: |
         set -euxo pipefail
-        ./.yamato/scripts/build_clang.sh
+        ./.yamato/scripts/build_clang.sh Debug        
+        ./.yamato/scripts/build_clang.sh Release
       name: Build OpenTelemetry CPP
     - command: |
         set -euxo pipefail
@@ -134,7 +134,6 @@ build_macos_x64:
     type: Unity::VM::osx
     flavor: b1.xlarge
   variables:
-    OPENTELEMETRY_CPP_CONFIG: Release
     OPENTELEMETRY_CPP_LIBTYPE: x64-osx
     CXX_STANDARD: 17
   commands:
@@ -150,7 +149,8 @@ build_macos_x64:
       name: Prepare VM to build OpenTelemetry CPP
     - command: |
         set -euxo pipefail
-        ./.yamato/scripts/build.sh
+        ./.yamato/scripts/build.sh Debug
+        ./.yamato/scripts/build.sh Release
       name: Build OpenTelemetry CPP
     - command: |
         set -euxo pipefail
@@ -172,7 +172,6 @@ build_macos_arm64:
     type: Unity::VM::osx
     flavor: b1.xlarge
   variables:
-    OPENTELEMETRY_CPP_CONFIG: Release
     OPENTELEMETRY_CPP_LIBTYPE: arm64-osx
     CXX_STANDARD: 17
     CMAKE_OSX_ARCHITECTURES: arm64
@@ -190,7 +189,8 @@ build_macos_arm64:
       name: Prepare VM to build OpenTelemetry CPP
     - command: |
         set -euxo pipefail
-        ./.yamato/scripts/build.sh
+        ./.yamato/scripts/build.sh Debug
+        ./.yamato/scripts/build.sh Release
       name: Build OpenTelemetry CPP
     - command: |
         set -euxo pipefail

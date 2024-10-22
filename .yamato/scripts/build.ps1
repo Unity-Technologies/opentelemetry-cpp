@@ -3,6 +3,7 @@ $ProgressPreference = "SilentlyContinue"
 
 # Get vswhere and cmake
 # ===================================
+$opentelemetry_cpp_config=$args[0]
 $env:VCPKG_ROOT = "$PWD/tools/vcpkg"
 $env:VCPKG_CMAKE = "$PWD/tools/vcpkg/scripts/buildsystems/vcpkg.cmake"
 $vswhere_dir = (Get-ChildItem -path ${env:ProgramFiles(x86)} -filter "vswhere.exe" -recurse -ErrorAction SilentlyContinue | Select-Object -First 1).DirectoryName
@@ -21,11 +22,12 @@ $env:PATH = "$vswhere_dir;$cmake_dir;$vcpkg_dir;${env:PATH}"
 
 # Build/Test/Package OpenTelemetry CPP
 # ===================================
-$install_dir = "$PWD/out"
+$build_dir = "$PWD/build/$opentelemetry_cpp_config"
+$install_dir = "$PWD/out/$opentelemetry_cpp_config"
 $otel_build_options = @(
     # see CI "cmake.maintainer.sync.test"
     #"-DCMAKE_INSTALL_PREFIX=$install_dir"                      # Only for ninja builds
-    "-DCMAKE_BUILD_TYPE=${env:OPENTELEMETRY_CPP_CONFIG}"        # Build only release
+    "-DCMAKE_BUILD_TYPE=$opentelemetry_cpp_config"              # Build only release
     #"-DWITH_STL=CXX17"                                          # Which version of the Standard Library for C++ to use, Matching bee_backend version
     "-DWITH_ABSEIL=ON"                                          # Don't use STL (mutually exclusive with WITH_STL), use Abseil instead
     "-DCMAKE_CXX_STANDARD=${env:CXX_STANDARD}"                  # Use C++ Standard Language Version 17, Matching bee_backend language version
@@ -45,11 +47,11 @@ $otel_build_options = @(
     "-DBUILD_TESTING=OFF"                                       # Whether to enable tests (on), makes the build faster and it does not work with *-windows-static-md
     "-DWITH_EXAMPLES=OFF"                                       # Whether to build examples (on), makes the build faster and it does not work with *-windows-static-md
 )
-& cmake -S . -B build -A $env:OPENTELEMETRY_CPP_LIBARCH $otel_build_options
+& cmake -S . -B $build_dir -A $env:OPENTELEMETRY_CPP_LIBARCH $otel_build_options
 if ($LASTEXITCODE -ne 0) { throw "Failed to configure OpenTelemetry CPP" }
-& cmake --build build --parallel $env:NUMBER_OF_PROCESSORS --config $env:OPENTELEMETRY_CPP_CONFIG --target all_build
+& cmake --build $build_dir --parallel $env:NUMBER_OF_PROCESSORS --config $opentelemetry_cpp_config --target all_build
 if ($LASTEXITCODE -ne 0) { throw "Failed to build OpenTelemetry CPP" }
-& ctest --build-config $env:OPENTELEMETRY_CPP_CONFIG --test-dir build
+& ctest --build-config $opentelemetry_cpp_config --test-dir $build_dir
 if ($LASTEXITCODE -ne 0) { throw "OpenTelemetry CPP Tests failed" }
-& cmake --install build --prefix $install_dir --config $env:OPENTELEMETRY_CPP_CONFIG
+& cmake --install $build_dir --prefix $install_dir --config $opentelemetry_cpp_config
 if ($LASTEXITCODE -ne 0) { throw "Failed to install OpenTelemetry CPP" }
