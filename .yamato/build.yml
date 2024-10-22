@@ -214,20 +214,12 @@ deploy:
     type: Unity::VM
   commands:
     - |
-      set -euxo pipefail
-      curl -sSo StevedoreUpload "$STEVEDORE_UPLOAD_TOOL_LINUX_X64_URL"
-      chmod +x StevedoreUpload
-      ls
-      ./StevedoreUpload \
-          --version-len=${#OPENTELEMETRY_CPP_VERSION} --repo=$STEVE_REPO --version="$OPENTELEMETRY_CPP_VERSION" \
-          opentelemetry-cpp-osx-x64.zip \
-          opentelemetry-cpp-osx-arm64.zip \
-          opentelemetry-cpp-lin-x64.zip \
-          opentelemetry-cpp-win-x64.zip \
-          opentelemetry-cpp-win-arm64.zip
+        export DEBIAN_FRONTEND=noninteractive
+        sudo -E apt-get update -y
+        sudo -E apt-get install -y unzip
+        ./.yamato/scripts/deploy.sh
   skip_checkout: true
   variables:
-    OPENTELEMETRY_CPP_VERSION: v1.16.1
     STEVE_REPO: testing
   dependencies:
     - .yamato/build.yml#build_pr
