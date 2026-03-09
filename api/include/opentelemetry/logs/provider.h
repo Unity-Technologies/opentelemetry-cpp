@@ -15,7 +15,9 @@ OPENTELEMETRY_BEGIN_NAMESPACE
 namespace logs
 {
 
+#if OPENTELEMETRY_ABI_VERSION_NO < 2
 class EventLoggerProvider;
+#endif
 class LoggerProvider;
 
 /**
@@ -39,19 +41,22 @@ public:
   /**
    * Changes the singleton LoggerProvider.
    */
-  static void SetLoggerProvider(nostd::shared_ptr<LoggerProvider> tp) noexcept
+  static void SetLoggerProvider(const nostd::shared_ptr<LoggerProvider> &tp) noexcept
   {
     std::lock_guard<common::SpinLockMutex> guard(GetLock());
     GetProvider() = tp;
   }
 
+#if OPENTELEMETRY_ABI_VERSION_NO < 2
   /**
    * Returns the singleton EventLoggerProvider.
    *
    * By default, a no-op EventLoggerProvider is returned. This will never return a
    * nullptr EventLoggerProvider.
+   * @deprecated
    */
-  static nostd::shared_ptr<EventLoggerProvider> GetEventLoggerProvider() noexcept
+  OPENTELEMETRY_DEPRECATED static nostd::shared_ptr<EventLoggerProvider>
+  GetEventLoggerProvider() noexcept
   {
     std::lock_guard<common::SpinLockMutex> guard(GetLock());
     return nostd::shared_ptr<EventLoggerProvider>(GetEventProvider());
@@ -59,12 +64,15 @@ public:
 
   /**
    * Changes the singleton EventLoggerProvider.
+   * @deprecated
    */
-  static void SetEventLoggerProvider(nostd::shared_ptr<EventLoggerProvider> tp) noexcept
+  OPENTELEMETRY_DEPRECATED static void SetEventLoggerProvider(
+      const nostd::shared_ptr<EventLoggerProvider> &tp) noexcept
   {
     std::lock_guard<common::SpinLockMutex> guard(GetLock());
     GetEventProvider() = tp;
   }
+#endif
 
 private:
   OPENTELEMETRY_API_SINGLETON static nostd::shared_ptr<LoggerProvider> &GetProvider() noexcept
@@ -73,12 +81,14 @@ private:
     return provider;
   }
 
+#if OPENTELEMETRY_ABI_VERSION_NO < 2
   OPENTELEMETRY_API_SINGLETON static nostd::shared_ptr<EventLoggerProvider> &
   GetEventProvider() noexcept
   {
     static nostd::shared_ptr<EventLoggerProvider> provider(new NoopEventLoggerProvider);
     return provider;
   }
+#endif
 
   OPENTELEMETRY_API_SINGLETON static common::SpinLockMutex &GetLock() noexcept
   {

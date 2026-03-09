@@ -32,18 +32,39 @@ class OPENTELEMETRY_EXPORT LoggerProvider final : public opentelemetry::logs::Lo
 {
 public:
   /**
-   * Initialize a new logger provider
-   * @param processor The span processor for this logger provider. This must
+   * Initialize a new logger provider.
+   * @param processor The log record processor for this logger provider. This must
    * not be a nullptr.
    * @param resource  The resources for this logger provider.
+   * @param logger_configurator The scope configurator used to determine the configs for loggers
+   * created using this logger provider.
    */
-  explicit LoggerProvider(std::unique_ptr<LogRecordProcessor> &&processor,
-                          const opentelemetry::sdk::resource::Resource &resource =
-                              opentelemetry::sdk::resource::Resource::Create({})) noexcept;
+  explicit LoggerProvider(
+      std::unique_ptr<LogRecordProcessor> &&processor,
+      const opentelemetry::sdk::resource::Resource &resource =
+          opentelemetry::sdk::resource::Resource::Create({}),
+      std::unique_ptr<instrumentationscope::ScopeConfigurator<LoggerConfig>> logger_configurator =
+          std::make_unique<instrumentationscope::ScopeConfigurator<LoggerConfig>>(
+              instrumentationscope::ScopeConfigurator<LoggerConfig>::Builder(
+                  LoggerConfig::Default())
+                  .Build())) noexcept;
 
-  explicit LoggerProvider(std::vector<std::unique_ptr<LogRecordProcessor>> &&processors,
-                          const opentelemetry::sdk::resource::Resource &resource =
-                              opentelemetry::sdk::resource::Resource::Create({})) noexcept;
+  /**
+   * Initialize a new logger provider.
+   * @param processors A list of log record processors for this logger provider.
+   * @param resource  The resources for this logger provider.
+   * @param logger_configurator The scope configurator used to determine the configs for loggers
+   * created using this logger provider.
+   */
+  explicit LoggerProvider(
+      std::vector<std::unique_ptr<LogRecordProcessor>> &&processors,
+      const opentelemetry::sdk::resource::Resource &resource =
+          opentelemetry::sdk::resource::Resource::Create({}),
+      std::unique_ptr<instrumentationscope::ScopeConfigurator<LoggerConfig>> logger_configurator =
+          std::make_unique<instrumentationscope::ScopeConfigurator<LoggerConfig>>(
+              instrumentationscope::ScopeConfigurator<LoggerConfig>::Builder(
+                  LoggerConfig::Default())
+                  .Build())) noexcept;
 
   /**
    * Initialize a new logger provider. A processor must later be assigned
@@ -57,6 +78,11 @@ public:
    */
   explicit LoggerProvider(std::unique_ptr<LoggerContext> context) noexcept;
 
+  LoggerProvider(const LoggerProvider &)            = delete;
+  LoggerProvider(LoggerProvider &&)                 = delete;
+  LoggerProvider &operator=(const LoggerProvider &) = delete;
+  LoggerProvider &operator=(LoggerProvider &&)      = delete;
+
   ~LoggerProvider() override;
 
   using opentelemetry::logs::LoggerProvider::GetLogger;
@@ -68,6 +94,7 @@ public:
    * @param library_name The version of the library.
    * @param library_version The version of the library.
    * @param schema_url The schema URL.
+   * @param attributes The attributes to be associated with the logger.
    */
   nostd::shared_ptr<opentelemetry::logs::Logger> GetLogger(
       nostd::string_view logger_name,
@@ -93,7 +120,7 @@ public:
   /**
    * Shutdown the log processor associated with this log provider.
    */
-  bool Shutdown() noexcept;
+  bool Shutdown(std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept;
 
   /**
    * Force flush the log processor associated with this log provider.

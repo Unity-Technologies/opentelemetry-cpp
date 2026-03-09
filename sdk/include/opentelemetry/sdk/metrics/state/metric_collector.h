@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "opentelemetry/nostd/function_ref.h"
+#include "opentelemetry/sdk/metrics/export/metric_filter.h"
 #include "opentelemetry/sdk/metrics/export/metric_producer.h"
 #include "opentelemetry/sdk/metrics/instruments.h"
 #include "opentelemetry/sdk/metrics/metric_reader.h"
@@ -24,7 +25,13 @@ class MeterContext;
 class CollectorHandle
 {
 public:
-  CollectorHandle()          = default;
+  CollectorHandle() = default;
+
+  CollectorHandle(const CollectorHandle &)            = delete;
+  CollectorHandle(CollectorHandle &&)                 = delete;
+  CollectorHandle &operator=(const CollectorHandle &) = delete;
+  CollectorHandle &operator=(CollectorHandle &&)      = delete;
+
   virtual ~CollectorHandle() = default;
 
   virtual AggregationTemporality GetAggregationTemporality(
@@ -40,7 +47,14 @@ public:
 class MetricCollector : public MetricProducer, public CollectorHandle
 {
 public:
-  MetricCollector(MeterContext *context, std::shared_ptr<MetricReader> metric_reader);
+  MetricCollector(MeterContext *context,
+                  std::shared_ptr<MetricReader> metric_reader,
+                  std::unique_ptr<MetricFilter> metric_filter = nullptr);
+
+  MetricCollector(const MetricCollector &)            = delete;
+  MetricCollector(MetricCollector &&)                 = delete;
+  MetricCollector &operator=(const MetricCollector &) = delete;
+  MetricCollector &operator=(MetricCollector &&)      = delete;
 
   ~MetricCollector() override = default;
 
@@ -62,6 +76,7 @@ public:
 private:
   MeterContext *meter_context_;
   std::shared_ptr<MetricReader> metric_reader_;
+  std::unique_ptr<MetricFilter> metric_filter_;
 };
 }  // namespace metrics
 }  // namespace sdk

@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
+
+#include "opentelemetry/ext/http/server/http_server.h"
+
+#include <stdint.h>
 #include <atomic>
 #include <string>
-#include "opentelemetry/ext/http/server/http_server.h"
 
 namespace
 {
@@ -19,13 +22,13 @@ protected:
   std::atomic<bool> is_running_{false};
 
 public:
-  HttpServer(std::string server_name = "test_server", uint16_t port = 8800) : port_(port)
+  HttpServer(const std::string &server_name = "test_server", uint16_t port = 8800) : port_(port)
   {
     server_.setServerName(server_name);
     server_.setKeepalive(false);
   }
 
-  void AddHandler(std::string path, HTTP_SERVER_NS::HttpRequestCallback *request_handler)
+  void AddHandler(const std::string &path, HTTP_SERVER_NS::HttpRequestCallback *request_handler)
   {
     server_.addHandler(path, *request_handler);
   }
@@ -47,7 +50,7 @@ public:
     }
   }
 
-  ~HttpServer() { Stop(); }
+  ~HttpServer() override { Stop(); }
 };
 
 }  // namespace

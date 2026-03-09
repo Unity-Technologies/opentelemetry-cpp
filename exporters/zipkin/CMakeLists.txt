@@ -1,8 +1,12 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
-include_directories(include)
-add_definitions(-DWITH_CURL)
+include(${PROJECT_SOURCE_DIR}/cmake/pkgconfig.cmake)
+
+#
+# opentelemetry_exporter_zipkin_trace
+#
+
 add_library(
   opentelemetry_exporter_zipkin_trace
   src/zipkin_exporter.cc src/zipkin_exporter_factory.cc src/recordable.cc)
@@ -12,6 +16,9 @@ target_include_directories(
   PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>"
          "$<INSTALL_INTERFACE:include>")
 
+set_target_properties(opentelemetry_exporter_zipkin_trace
+                      PROPERTIES EXPORT_NAME zipkin_trace_exporter)
+
 set_target_version(opentelemetry_exporter_zipkin_trace)
 
 target_link_libraries(
@@ -19,20 +26,26 @@ target_link_libraries(
   PUBLIC opentelemetry_trace opentelemetry_http_client_curl
          nlohmann_json::nlohmann_json)
 
-if(OPENTELEMETRY_INSTALL)
-  install(
-    TARGETS opentelemetry_exporter_zipkin_trace
-    EXPORT "${PROJECT_NAME}-target"
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+otel_add_component(
+  COMPONENT
+  exporters_zipkin
+  TARGETS
+  opentelemetry_exporter_zipkin_trace
+  FILES_DIRECTORY
+  "include/opentelemetry/exporters/zipkin"
+  FILES_DESTINATION
+  "include/opentelemetry/exporters"
+  FILES_MATCHING
+  PATTERN
+  "*.h"
+  PATTERN
+  "recordable.h"
+  EXCLUDE)
 
-  install(
-    DIRECTORY include/opentelemetry/exporters/zipkin
-    DESTINATION include/opentelemetry/exporters
-    FILES_MATCHING
-    PATTERN "*.h"
-    PATTERN "recordable.h" EXCLUDE)
+if(OPENTELEMETRY_INSTALL)
+  opentelemetry_add_pkgconfig(
+    exporter_zipkin_trace "OpenTelemetry Exporter - Zipkin"
+    "Exports trace spans in Zipkin format." "opentelemetry_trace")
 endif()
 
 if(BUILD_TESTING)
@@ -49,22 +62,16 @@ if(BUILD_TESTING)
     TEST_PREFIX exporter.
     TEST_LIST zipkin_recordable_test)
 
-  if(MSVC)
-    if(GMOCK_LIB)
-      unset(GMOCK_LIB CACHE)
-    endif()
-  endif()
-  if(MSVC AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-    find_library(GMOCK_LIB gmockd PATH_SUFFIXES lib)
-  else()
-    find_library(GMOCK_LIB gmock PATH_SUFFIXES lib)
-  endif()
-
   add_executable(zipkin_exporter_test test/zipkin_exporter_test.cc)
 
   target_link_libraries(
-    zipkin_exporter_test ${GTEST_BOTH_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}
-    ${GMOCK_LIB} opentelemetry_exporter_zipkin_trace opentelemetry_resources)
+    zipkin_exporter_test
+    ${GTEST_BOTH_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${GMOCK_LIB}
+    opentelemetry_exporter_zipkin_trace
+    opentelemetry_resources
+    CURL::libcurl)
 
   gtest_add_tests(
     TARGET zipkin_exporter_test

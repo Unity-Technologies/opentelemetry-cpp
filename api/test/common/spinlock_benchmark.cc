@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <benchmark/benchmark.h>
-#include <stdint.h>
-#include <algorithm>
 #include <atomic>
+#include <cstdint>
 #include <thread>
 #include <vector>
 
@@ -102,8 +101,10 @@ static void BM_ProcYieldSpinLockThrashing(benchmark::State &s)
 #  else
           __builtin_ia32_pause();
 #  endif
-#elif defined(__arm__)
-          __asm__ volatile("yield" ::: "memory");
+#elif defined(__armel__) || defined(__ARMEL__)
+          asm volatile("nop" ::: "memory");
+#elif defined(__arm__) || defined(__aarch64__)  // arm big endian / arm64
+          __asm__ __volatile__("yield" ::: "memory");
 #endif
         }
       },

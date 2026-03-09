@@ -4,7 +4,6 @@
 #include <gtest/gtest.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <algorithm>
 #include <chrono>
 #include <map>
 #include <memory>
@@ -13,10 +12,11 @@
 #include <vector>
 #include "common.h"
 
-#include "opentelemetry/common/attribute_value.h"
 #include "opentelemetry/common/key_value_iterable_view.h"
+#include "opentelemetry/common/timestamp.h"
 #include "opentelemetry/context/context.h"
 #include "opentelemetry/nostd/function_ref.h"
+#include "opentelemetry/nostd/span.h"
 #include "opentelemetry/nostd/variant.h"
 #include "opentelemetry/sdk/metrics/data/metric_data.h"
 #include "opentelemetry/sdk/metrics/data/point_data.h"
@@ -25,7 +25,7 @@
 #include "opentelemetry/sdk/metrics/state/sync_metric_storage.h"
 #include "opentelemetry/sdk/metrics/view/attributes_processor.h"
 
-#if ENABLE_METRICS_EXEMPLAR_PREVIEW
+#ifdef ENABLE_METRICS_EXEMPLAR_PREVIEW
 #  include "opentelemetry/sdk/metrics/exemplar/filter_type.h"
 #  include "opentelemetry/sdk/metrics/exemplar/reservoir.h"
 #endif
@@ -49,10 +49,10 @@ TEST_P(WritableMetricStorageTestFixture, LongCounterSumAggregation)
   std::map<std::string, std::string> attributes_get = {{"RequestType", "GET"}};
   std::map<std::string, std::string> attributes_put = {{"RequestType", "PUT"}};
 
-  std::unique_ptr<DefaultAttributesProcessor> default_attributes_processor{
+  std::shared_ptr<DefaultAttributesProcessor> default_attributes_processor{
       new DefaultAttributesProcessor{}};
   opentelemetry::sdk::metrics::SyncMetricStorage storage(
-      instr_desc, AggregationType::kSum, default_attributes_processor.get(),
+      instr_desc, AggregationType::kSum, default_attributes_processor,
 #ifdef ENABLE_METRICS_EXEMPLAR_PREVIEW
       ExemplarFilterType::kAlwaysOff, ExemplarReservoir::GetNoExemplarReservoir(),
 #endif
@@ -189,10 +189,10 @@ TEST_P(WritableMetricStorageTestFixture, DoubleCounterSumAggregation)
   std::map<std::string, std::string> attributes_get = {{"RequestType", "GET"}};
   std::map<std::string, std::string> attributes_put = {{"RequestType", "PUT"}};
 
-  std::unique_ptr<DefaultAttributesProcessor> default_attributes_processor{
+  std::shared_ptr<DefaultAttributesProcessor> default_attributes_processor{
       new DefaultAttributesProcessor{}};
   opentelemetry::sdk::metrics::SyncMetricStorage storage(
-      instr_desc, AggregationType::kSum, default_attributes_processor.get(),
+      instr_desc, AggregationType::kSum, default_attributes_processor,
 #ifdef ENABLE_METRICS_EXEMPLAR_PREVIEW
       ExemplarFilterType::kAlwaysOff, ExemplarReservoir::GetNoExemplarReservoir(),
 #endif

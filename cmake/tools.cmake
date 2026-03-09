@@ -94,6 +94,17 @@ function(patch_protobuf_targets)
 endfunction()
 
 function(project_build_tools_get_imported_location OUTPUT_VAR_NAME TARGET_NAME)
+
+  # The following if statement was added to support cmake versions < 3.19
+  get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
+  if(TARGET_TYPE STREQUAL "INTERFACE_LIBRARY")
+    # For interface libraries, do not attempt to retrieve imported location.
+    set(${OUTPUT_VAR_NAME}
+        ""
+        PARENT_SCOPE)
+    return()
+  endif()
+
   if(CMAKE_BUILD_TYPE)
     string(TOUPPER "IMPORTED_LOCATION_${CMAKE_BUILD_TYPE}"
                    TRY_SPECIFY_IMPORTED_LOCATION)
@@ -210,4 +221,101 @@ function(project_build_tools_patch_default_imported_config)
       endforeach()
     endif()
   endforeach()
+endfunction()
+
+function(project_build_tools_set_export_declaration OUTPUT_VARNAME)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang|Intel|XL|XLClang")
+    if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+      set(${OUTPUT_VARNAME}
+          "__attribute__((__dllexport__))"
+          PARENT_SCOPE)
+    else()
+      set(${OUTPUT_VARNAME}
+          "__attribute__((visibility(\"default\")))"
+          PARENT_SCOPE)
+    endif()
+  elseif(MSVC)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+      set(${OUTPUT_VARNAME}
+          "__declspec(dllexport)"
+          PARENT_SCOPE)
+    else()
+      set(${OUTPUT_VARNAME}
+          ""
+          PARENT_SCOPE)
+    endif()
+  elseif(SunPro)
+    set(${OUTPUT_VARNAME}
+        "__global"
+        PARENT_SCOPE)
+  elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    set(${OUTPUT_VARNAME}
+        "__declspec(dllexport)"
+        PARENT_SCOPE)
+  else()
+    set(${OUTPUT_VARNAME}
+        ""
+        PARENT_SCOPE)
+  endif()
+endfunction()
+
+function(project_build_tools_set_import_declaration OUTPUT_VARNAME)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang|Intel|XL|XLClang")
+    if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+      set(${OUTPUT_VARNAME}
+          "__attribute__((__dllimport__))"
+          PARENT_SCOPE)
+    else()
+      set(${OUTPUT_VARNAME}
+          ""
+          PARENT_SCOPE)
+    endif()
+  elseif(MSVC)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+      set(${OUTPUT_VARNAME}
+          "__declspec(dllimport)"
+          PARENT_SCOPE)
+    else()
+      set(${OUTPUT_VARNAME}
+          ""
+          PARENT_SCOPE)
+    endif()
+  elseif(CMAKE_CXX_COMPILER_ID STREQUAL "SunPro")
+    set(${OUTPUT_VARNAME}
+        "__global"
+        PARENT_SCOPE)
+  elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    set(${OUTPUT_VARNAME}
+        "__declspec(dllimport)"
+        PARENT_SCOPE)
+  else()
+    set(${OUTPUT_VARNAME}
+        ""
+        PARENT_SCOPE)
+  endif()
+endfunction()
+
+function(project_build_tools_set_shared_library_declaration DEFINITION_VARNAME)
+  project_build_tools_set_export_declaration(EXPORT_DECLARATION)
+  project_build_tools_set_import_declaration(IMPORT_DECLARATION)
+  foreach(TARGET_NAME ${ARGN})
+    target_compile_definitions(
+      ${TARGET_NAME} INTERFACE "${DEFINITION_VARNAME}=${IMPORT_DECLARATION}")
+    target_compile_definitions(
+      ${TARGET_NAME} PRIVATE "${DEFINITION_VARNAME}=${EXPORT_DECLARATION}")
+  endforeach()
+endfunction()
+
+function(project_build_tools_set_static_library_declaration DEFINITION_VARNAME)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang|Intel|XL|XLClang")
+    foreach(TARGET_NAME ${ARGN})
+      target_compile_definitions(
+        ${TARGET_NAME}
+        PUBLIC "${DEFINITION_VARNAME}=__attribute__((visibility(\"default\")))")
+    endforeach()
+  else()
+    foreach(TARGET_NAME ${ARGN})
+      target_compile_definitions(${TARGET_NAME} PUBLIC "${DEFINITION_VARNAME}=")
+    endforeach()
+  endif()
 endfunction()

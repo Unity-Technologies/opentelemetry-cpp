@@ -3,8 +3,8 @@
 
 #pragma once
 
+#include <stdint.h>
 #include <memory>
-
 #include "opentelemetry/sdk/metrics/data/metric_data.h"
 #include "opentelemetry/version.h"
 
@@ -47,6 +47,13 @@ public:
    */
 
   virtual PointType ToPoint() const noexcept = 0;
+
+  Aggregation() = default;
+
+  Aggregation(const Aggregation &)            = delete;
+  Aggregation(Aggregation &&)                 = delete;
+  Aggregation &operator=(const Aggregation &) = delete;
+  Aggregation &operator=(Aggregation &&)      = delete;
 
   virtual ~Aggregation() = default;
 };

@@ -1,28 +1,43 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-#ifdef BAZEL_BUILD
-#  include "examples/grpc/protos/messages.grpc.pb.h"
-#else
-#  include "messages.grpc.pb.h"
-#endif
-
-#include "opentelemetry/trace/context.h"
-#include "opentelemetry/trace/semantic_conventions.h"
-#include "opentelemetry/trace/span_context_kv_iterable_view.h"
-#include "tracer_common.h"
-
-#include <grpcpp/grpcpp.h>
+#include <grpcpp/security/server_credentials.h>
 #include <grpcpp/server.h>
 #include <grpcpp/server_builder.h>
 #include <grpcpp/server_context.h>
-
-#include <chrono>
-#include <fstream>
+#include <grpcpp/support/status.h>
+#include <grpcpp/support/string_ref.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <iostream>
 #include <map>
-#include <sstream>
 #include <string>
-#include <thread>
+#include <utility>
+
+#include "opentelemetry/context/context.h"
+#include "opentelemetry/context/propagation/global_propagator.h"
+#include "opentelemetry/context/propagation/text_map_propagator.h"
+#include "opentelemetry/context/runtime_context.h"
+#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/nostd/variant.h"
+#include "opentelemetry/semconv/incubating/rpc_attributes.h"
+#include "opentelemetry/trace/context.h"
+#include "opentelemetry/trace/scope.h"
+#include "opentelemetry/trace/span.h"
+#include "opentelemetry/trace/span_context.h"
+#include "opentelemetry/trace/span_metadata.h"
+#include "opentelemetry/trace/span_startoptions.h"
+#include "opentelemetry/trace/tracer.h"
+#include "tracer_common.h"
+
+#ifdef BAZEL_BUILD
+#  include "examples/grpc/protos/messages.grpc.pb.h"
+#  include "examples/grpc/protos/messages.pb.h"
+#else
+#  include "messages.grpc.pb.h"
+#  include "messages.pb.h"
+#endif
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -38,6 +53,7 @@ using SpanContext = opentelemetry::trace::SpanContext;
 using namespace opentelemetry::trace;
 
 namespace context = opentelemetry::context;
+namespace semconv = opentelemetry::semconv;
 
 namespace
 {
@@ -67,10 +83,9 @@ public:
 
     std::string span_name = "GreeterService/Greet";
     auto span             = get_tracer("grpc")->StartSpan(span_name,
-                                                          {{SemanticConventions::kRpcSystem, "grpc"},
-                                                           {SemanticConventions::kRpcService, "GreeterService"},
-                                                           {SemanticConventions::kRpcMethod, "Greet"},
-                                                           {SemanticConventions::kRpcGrpcStatusCode, 0}},
+                                                          {{semconv::rpc::kRpcSystemName, "grpc"},
+                                                           {semconv::rpc::kRpcMethod, "GreeterService/Greet"},
+                                                           {semconv::rpc::kRpcResponseStatusCode, "OK"}},
                                                           options);
     auto scope            = get_tracer("grpc")->WithActiveSpan(span);
 
@@ -111,14 +126,10 @@ int main(int argc, char **argv)
 {
   InitTracer();
   constexpr uint16_t default_port = 8800;
-  uint16_t port;
+  uint16_t port{default_port};
   if (argc > 1)
   {
-    port = atoi(argv[1]);
-  }
-  else
-  {
-    port = default_port;
+    port = static_cast<uint16_t>(atoi(argv[1]));
   }
 
   RunServer(port);

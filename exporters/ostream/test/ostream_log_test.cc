@@ -1,20 +1,42 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+#include <gtest/gtest.h>
+#include <array>
+#include <chrono>
+#include <initializer_list>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "opentelemetry/common/attribute_value.h"
+#include "opentelemetry/common/key_value_iterable_view.h"
+#include "opentelemetry/common/timestamp.h"
 #include "opentelemetry/exporters/ostream/log_record_exporter.h"
 #include "opentelemetry/exporters/ostream/log_record_exporter_factory.h"
+#include "opentelemetry/logs/event_id.h"
+#include "opentelemetry/logs/logger.h"
+#include "opentelemetry/logs/logger_provider.h"
 #include "opentelemetry/logs/provider.h"
+#include "opentelemetry/logs/severity.h"
+#include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/nostd/span.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/nostd/utility.h"
 #include "opentelemetry/sdk/instrumentationscope/instrumentation_scope.h"
+#include "opentelemetry/sdk/logs/exporter.h"
 #include "opentelemetry/sdk/logs/logger_provider.h"
+#include "opentelemetry/sdk/logs/processor.h"
+#include "opentelemetry/sdk/logs/provider.h"
 #include "opentelemetry/sdk/logs/read_write_log_record.h"
+#include "opentelemetry/sdk/logs/readable_log_record.h"
+#include "opentelemetry/sdk/logs/recordable.h"
 #include "opentelemetry/sdk/logs/simple_log_record_processor.h"
+#include "opentelemetry/sdk/resource/resource.h"
 #include "opentelemetry/sdk/version/version.h"
-
-#include <array>
-#include <iostream>
-
-#include <gtest/gtest.h>
+#include "opentelemetry/version.h"
 
 namespace sdklogs      = opentelemetry::sdk::logs;
 namespace logs_api     = opentelemetry::logs;
@@ -103,7 +125,7 @@ TEST(OstreamLogExporter, DefaultLogRecordToCout)
       "  severity_text      : INVALID\n",
       "  body               : \n",
       "  resource           : \n",
-      "    telemetry.sdk.version: " OPENTELEMETRY_VERSION "\n",
+      std::string{"    telemetry.sdk.version: "} + OPENTELEMETRY_SDK_VERSION + "\n",
       "    telemetry.sdk.name: opentelemetry\n",
       "    telemetry.sdk.language: cpp\n",
       "  attributes         : \n",
@@ -114,7 +136,7 @@ TEST(OstreamLogExporter, DefaultLogRecordToCout)
       "  trace_flags        : 00\n",
       "  scope              : \n",
       "    name             : otel-cpp\n",
-      "    version          : " OPENTELEMETRY_SDK_VERSION "\n",
+      std::string{"    version          : "} + OPENTELEMETRY_SDK_VERSION + "\n",
       "    schema_url       : https://opentelemetry.io/schemas/1.15.0\n",
       "    attributes       : \n",
       "      scope.attr.key: scope.attr.value\n",
@@ -177,7 +199,7 @@ TEST(OStreamLogRecordExporter, SimpleLogToCout)
           "  severity_text      : TRACE\n"
           "  body               : Message\n",
       "  resource           : \n",
-      "    telemetry.sdk.version: " OPENTELEMETRY_VERSION "\n",
+      std::string{"    telemetry.sdk.version: "} + OPENTELEMETRY_SDK_VERSION + "\n",
       "    telemetry.sdk.name: opentelemetry\n",
       "    telemetry.sdk.language: cpp\n",
       "  attributes         : \n",
@@ -188,7 +210,7 @@ TEST(OStreamLogRecordExporter, SimpleLogToCout)
       "  trace_flags        : 00\n",
       "  scope              : \n",
       "    name             : otel-cpp\n",
-      "    version          : " OPENTELEMETRY_SDK_VERSION "\n",
+      std::string{"    version          : "} + OPENTELEMETRY_SDK_VERSION + "\n",
       "    schema_url       : https://opentelemetry.io/schemas/1.15.0\n",
       "    attributes       : \n",
       "      scope.attr.key: scope.attr.value\n",
@@ -248,7 +270,7 @@ TEST(OStreamLogRecordExporter, LogWithStringAttributesToCerr)
       "  severity_text      : INVALID\n",
       "  body               : \n",
       "  resource           : \n",
-      "    telemetry.sdk.version: " OPENTELEMETRY_VERSION "\n",
+      std::string{"    telemetry.sdk.version: "} + OPENTELEMETRY_SDK_VERSION + "\n",
       "    telemetry.sdk.name: opentelemetry\n",
       "    telemetry.sdk.language: cpp\n",
       "    service.name: unknown_service\n",
@@ -262,7 +284,7 @@ TEST(OStreamLogRecordExporter, LogWithStringAttributesToCerr)
       "  trace_flags        : 00\n",
       "  scope              : \n",
       "    name             : otel-cpp\n",
-      "    version          : " OPENTELEMETRY_SDK_VERSION "\n",
+      std::string{"    version          : "} + OPENTELEMETRY_SDK_VERSION + "\n",
       "    schema_url       : https://opentelemetry.io/schemas/1.15.0\n",
       "    attributes       : \n",
       "      scope.attr.key: scope.attr.value\n",
@@ -330,7 +352,7 @@ TEST(OStreamLogRecordExporter, LogWithVariantTypesToClog)
       "  body               : \n",
       "  resource           : \n",
       "    service.name: unknown_service\n",
-      "    telemetry.sdk.version: " OPENTELEMETRY_VERSION "\n",
+      std::string{"    telemetry.sdk.version: "} + OPENTELEMETRY_SDK_VERSION + "\n",
       "    telemetry.sdk.name: opentelemetry\n",
       "    telemetry.sdk.language: cpp\n",
       "    res1: [1,2,3]\n",
@@ -343,7 +365,7 @@ TEST(OStreamLogRecordExporter, LogWithVariantTypesToClog)
       "  trace_flags        : 00\n",
       "  scope              : \n",
       "    name             : otel-cpp\n",
-      "    version          : " OPENTELEMETRY_SDK_VERSION "\n",
+      std::string{"    version          : "} + OPENTELEMETRY_SDK_VERSION + "\n",
       "    schema_url       : https://opentelemetry.io/schemas/1.15.0\n",
       "    attributes       : \n",
       "      scope.attr.key: scope.attr.value\n",
@@ -375,7 +397,7 @@ TEST(OStreamLogRecordExporter, IntegrationTest)
       new sdklogs::SimpleLogRecordProcessor(std::move(exporter))));
   auto apiProvider = nostd::shared_ptr<logs_api::LoggerProvider>(sdkProvider);
   auto provider    = nostd::shared_ptr<logs_api::LoggerProvider>(apiProvider);
-  logs_api::Provider::SetLoggerProvider(provider);
+  sdklogs::Provider::SetLoggerProvider(provider);
   const std::string schema_url{"https://opentelemetry.io/schemas/1.11.0"};
   auto logger = logs_api::Provider::GetLoggerProvider()->GetLogger(
       "Logger", "opentelelemtry_library", OPENTELEMETRY_SDK_VERSION, schema_url,
@@ -403,7 +425,7 @@ TEST(OStreamLogRecordExporter, IntegrationTest)
       "  severity_text      : DEBUG\n",
       "  body               : Hello\n",
       "  resource           : \n",
-      "    telemetry.sdk.version: " OPENTELEMETRY_VERSION "\n",
+      std::string{"    telemetry.sdk.version: "} + OPENTELEMETRY_SDK_VERSION + "\n",
       "    service.name: unknown_service\n",
       "    telemetry.sdk.name: opentelemetry\n",
       "    telemetry.sdk.language: cpp\n",
@@ -415,7 +437,7 @@ TEST(OStreamLogRecordExporter, IntegrationTest)
       "  trace_flags        : 00\n",
       "  scope              : \n",
       "    name             : opentelelemtry_library\n",
-      "    version          : " OPENTELEMETRY_SDK_VERSION "\n",
+      std::string{"    version          : "} + OPENTELEMETRY_SDK_VERSION + "\n",
       "    schema_url       : https://opentelemetry.io/schemas/1.11.0\n",
       "    attributes       : \n",
       "      scope.attr.key: 123\n",
@@ -446,7 +468,7 @@ TEST(OStreamLogRecordExporter, IntegrationTestWithEventId)
       new sdklogs::SimpleLogRecordProcessor(std::move(exporter))));
   auto apiProvider = nostd::shared_ptr<logs_api::LoggerProvider>(sdkProvider);
   auto provider    = nostd::shared_ptr<logs_api::LoggerProvider>(apiProvider);
-  logs_api::Provider::SetLoggerProvider(provider);
+  sdklogs::Provider::SetLoggerProvider(provider);
   const std::string schema_url{"https://opentelemetry.io/schemas/1.11.0"};
   auto logger = logs_api::Provider::GetLoggerProvider()->GetLogger(
       "Logger", "opentelelemtry_library", OPENTELEMETRY_SDK_VERSION, schema_url,
@@ -474,7 +496,7 @@ TEST(OStreamLogRecordExporter, IntegrationTestWithEventId)
       "  severity_text      : DEBUG\n",
       "  body               : Hello {key1} {key2}\n",
       "  resource           : \n",
-      "    telemetry.sdk.version: " OPENTELEMETRY_VERSION "\n",
+      std::string{"    telemetry.sdk.version: "} + OPENTELEMETRY_SDK_VERSION + "\n",
       "    service.name: unknown_service\n",
       "    telemetry.sdk.name: opentelemetry\n",
       "    telemetry.sdk.language: cpp\n",
@@ -486,7 +508,7 @@ TEST(OStreamLogRecordExporter, IntegrationTestWithEventId)
       "  trace_flags        : 00\n",
       "  scope              : \n",
       "    name             : opentelelemtry_library\n",
-      "    version          : " OPENTELEMETRY_SDK_VERSION "\n",
+      std::string{"    version          : "} + OPENTELEMETRY_SDK_VERSION + "\n",
       "    schema_url       : https://opentelemetry.io/schemas/1.11.0\n",
       "    attributes       : \n",
       "      scope.attr.key: 123\n",

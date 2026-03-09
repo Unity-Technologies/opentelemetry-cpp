@@ -1,6 +1,8 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
+include(${PROJECT_SOURCE_DIR}/cmake/pkgconfig.cmake)
+
 add_library(opentelemetry_exporter_elasticsearch_logs
             src/es_log_record_exporter.cc src/es_log_recordable.cc)
 
@@ -18,20 +20,27 @@ target_link_libraries(
   PUBLIC opentelemetry_trace opentelemetry_logs opentelemetry_http_client_curl
          nlohmann_json::nlohmann_json)
 
-if(OPENTELEMETRY_INSTALL)
-  install(
-    TARGETS opentelemetry_exporter_elasticsearch_logs
-    EXPORT "${PROJECT_NAME}-target"
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+otel_add_component(
+  COMPONENT
+  exporters_elasticsearch
+  TARGETS
+  opentelemetry_exporter_elasticsearch_logs
+  FILES_DIRECTORY
+  "include/opentelemetry/exporters/elasticsearch"
+  FILES_DESTINATION
+  "include/opentelemetry/exporters"
+  FILES_MATCHING
+  PATTERN
+  "*.h"
+  PATTERN
+  "es_log_recordable.h"
+  EXCLUDE)
 
-  install(
-    DIRECTORY include/opentelemetry/exporters/elasticsearch
-    DESTINATION include/opentelemetry/exporters
-    FILES_MATCHING
-    PATTERN "*.h"
-    PATTERN "es_log_recordable.h" EXCLUDE)
+if(OPENTELEMETRY_INSTALL)
+  opentelemetry_add_pkgconfig(
+    exporter_elasticsearch_logs "OpenTelemetry Exporter - Elasticsearch"
+    "Exports log records to Elasticsearch."
+    "opentelemetry_trace opentelemetry_logs")
 endif()
 
 if(BUILD_TESTING)

@@ -3,10 +3,8 @@
 
 #include "opentelemetry/nostd/variant.h"
 
-#include <string>
-#include <type_traits>
-
 #include <gtest/gtest.h>
+#include <string>
 
 namespace nostd = opentelemetry::nostd;
 
@@ -15,6 +13,11 @@ class DestroyCounter
 public:
   explicit DestroyCounter(int *count) : count_{count} {}
   ~DestroyCounter() { ++*count_; }
+
+  DestroyCounter(const DestroyCounter &)            = default;
+  DestroyCounter &operator=(const DestroyCounter &) = default;
+  DestroyCounter(DestroyCounter &&)                 = default;
+  DestroyCounter &operator=(DestroyCounter &&)      = default;
 
 private:
   int *count_;

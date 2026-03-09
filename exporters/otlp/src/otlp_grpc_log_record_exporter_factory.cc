@@ -4,8 +4,12 @@
 // MUST be first (absl)
 #include "opentelemetry/exporters/otlp/otlp_grpc_log_record_exporter.h"
 
+#include <memory>
+
 #include "opentelemetry/exporters/otlp/otlp_grpc_log_record_exporter_factory.h"
 #include "opentelemetry/exporters/otlp/otlp_grpc_log_record_exporter_options.h"
+#include "opentelemetry/sdk/logs/exporter.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace exporter
@@ -25,6 +29,15 @@ OtlpGrpcLogRecordExporterFactory::Create(const OtlpGrpcLogRecordExporterOptions 
 {
   std::unique_ptr<opentelemetry::sdk::logs::LogRecordExporter> exporter(
       new OtlpGrpcLogRecordExporter(options));
+  return exporter;
+}
+
+std::unique_ptr<opentelemetry::sdk::logs::LogRecordExporter>
+OtlpGrpcLogRecordExporterFactory::Create(const OtlpGrpcLogRecordExporterOptions &options,
+                                         const std::shared_ptr<OtlpGrpcClient> &client)
+{
+  std::unique_ptr<opentelemetry::sdk::logs::LogRecordExporter> exporter(
+      new OtlpGrpcLogRecordExporter(options, client));
   return exporter;
 }
 

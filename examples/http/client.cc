@@ -1,10 +1,31 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+#include "opentelemetry/context/context.h"
+#include "opentelemetry/context/propagation/global_propagator.h"
+#include "opentelemetry/context/propagation/text_map_propagator.h"
+#include "opentelemetry/context/runtime_context.h"
+#include "opentelemetry/ext/http/client/http_client.h"
 #include "opentelemetry/ext/http/client/http_client_factory.h"
 #include "opentelemetry/ext/http/common/url_parser.h"
-#include "opentelemetry/trace/semantic_conventions.h"
+#include "opentelemetry/nostd/function_ref.h"
+#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/semconv/http_attributes.h"
+#include "opentelemetry/semconv/url_attributes.h"
+#include "opentelemetry/trace/scope.h"
+#include "opentelemetry/trace/span.h"
+#include "opentelemetry/trace/span_metadata.h"
+#include "opentelemetry/trace/span_startoptions.h"
+#include "opentelemetry/trace/tracer.h"
 #include "tracer_common.h"
+
+#include <stdint.h>
+#include <stdlib.h>
+#include <map>
+#include <string>
+#include <type_traits>
+#include <utility>
 
 namespace
 {
@@ -13,6 +34,7 @@ using namespace opentelemetry::trace;
 namespace http_client = opentelemetry::ext::http::client;
 namespace context     = opentelemetry::context;
 namespace nostd       = opentelemetry::nostd;
+namespace semconv     = opentelemetry::semconv;
 
 void sendRequest(const std::string &url)
 {
@@ -26,9 +48,9 @@ void sendRequest(const std::string &url)
   std::string span_name = url_parser.path_;
   auto span             = get_tracer("http-client")
                   ->StartSpan(span_name,
-                              {{SemanticConventions::kUrlFull, url_parser.url_},
-                               {SemanticConventions::kUrlScheme, url_parser.scheme_},
-                               {SemanticConventions::kHttpRequestMethod, "GET"}},
+                              {{semconv::url::kUrlFull, url_parser.url_},
+                               {semconv::url::kUrlScheme, url_parser.scheme_},
+                               {semconv::http::kHttpRequestMethod, "GET"}},
                               options);
   auto scope = get_tracer("http-client")->WithActiveSpan(span);
 
@@ -44,7 +66,7 @@ void sendRequest(const std::string &url)
   {
     // set span attributes
     auto status_code = result.GetResponse().GetStatusCode();
-    span->SetAttribute(SemanticConventions::kHttpResponseStatusCode, status_code);
+    span->SetAttribute(semconv::http::kHttpResponseStatusCode, status_code);
     result.GetResponse().ForEachHeader(
         [&span](nostd::string_view header_name, nostd::string_view header_value) {
           span->SetAttribute("http.header." + std::string(header_name.data()), header_value);
@@ -77,20 +99,17 @@ int main(int argc, char *argv[])
   constexpr char default_host[]   = "localhost";
   constexpr char default_path[]   = "/helloworld";
   constexpr uint16_t default_port = 8800;
-  uint16_t port;
+  uint16_t port{default_port};
 
   // The port the validation service listens to can be specified via the command line.
   if (argc > 1)
   {
     port = static_cast<uint16_t>(atoi(argv[1]));
   }
-  else
-  {
-    port = default_port;
-  }
 
   std::string url = "http://" + std::string(default_host) + ":" + std::to_string(port) +
                     std::string(default_path);
   sendRequest(url);
   CleanupTracer();
+  return 0;
 }

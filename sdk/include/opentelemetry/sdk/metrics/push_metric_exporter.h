@@ -24,6 +24,13 @@ struct ResourceMetrics;
 class PushMetricExporter
 {
 public:
+  PushMetricExporter() = default;
+
+  PushMetricExporter(const PushMetricExporter &)            = delete;
+  PushMetricExporter(PushMetricExporter &&)                 = delete;
+  PushMetricExporter &operator=(const PushMetricExporter &) = delete;
+  PushMetricExporter &operator=(PushMetricExporter &&)      = delete;
+
   virtual ~PushMetricExporter() = default;
 
   /**
@@ -53,7 +60,7 @@ public:
    * @return return the status of the operation.
    */
   virtual bool Shutdown(
-      std::chrono::microseconds timeout = std::chrono::microseconds(0)) noexcept = 0;
+      std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept = 0;
 };
 }  // namespace metrics
 }  // namespace sdk

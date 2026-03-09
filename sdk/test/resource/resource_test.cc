@@ -9,13 +9,13 @@
 #include <unordered_map>
 #include <utility>
 
-#include "opentelemetry/nostd/utility.h"
 #include "opentelemetry/nostd/variant.h"
 #include "opentelemetry/sdk/common/attribute_utils.h"
 #include "opentelemetry/sdk/resource/resource.h"
 #include "opentelemetry/sdk/resource/resource_detector.h"
-#include "opentelemetry/sdk/resource/semantic_conventions.h"
 #include "opentelemetry/sdk/version/version.h"
+#include "opentelemetry/semconv/service_attributes.h"
+#include "opentelemetry/semconv/telemetry_attributes.h"
 
 #if defined(_MSC_VER)
 #  include "opentelemetry/sdk/common/env_variables.h"
@@ -24,7 +24,8 @@ using opentelemetry::sdk::common::unsetenv;
 #endif
 
 using namespace opentelemetry::sdk::resource;
-namespace nostd = opentelemetry::nostd;
+namespace nostd   = opentelemetry::nostd;
+namespace semconv = opentelemetry::semconv;
 
 class TestResource : public Resource
 {
@@ -35,16 +36,25 @@ public:
   {}
 };
 
+class TestResourceDetector : public ResourceDetector
+{
+public:
+  TestResourceDetector() = default;
+  Resource Detect() noexcept override { return Create(attributes, schema_url); }
+  ResourceAttributes attributes;
+  std::string schema_url;
+};
+
 TEST(ResourceTest, create_without_servicename)
 {
   ResourceAttributes expected_attributes = {
       {"service", "backend"},
       {"version", static_cast<uint32_t>(1)},
       {"cost", 234.23},
-      {SemanticConventions::kTelemetrySdkLanguage, "cpp"},
-      {SemanticConventions::kTelemetrySdkName, "opentelemetry"},
-      {SemanticConventions::kTelemetrySdkVersion, OPENTELEMETRY_SDK_VERSION},
-      {SemanticConventions::kServiceName, "unknown_service"}};
+      {semconv::telemetry::kTelemetrySdkLanguage, "cpp"},
+      {semconv::telemetry::kTelemetrySdkName, "opentelemetry"},
+      {semconv::telemetry::kTelemetrySdkVersion, OPENTELEMETRY_SDK_VERSION},
+      {semconv::service::kServiceName, "unknown_service"}};
 
   ResourceAttributes attributes = {
       {"service", "backend"}, {"version", static_cast<uint32_t>(1)}, {"cost", 234.23}};
@@ -74,10 +84,10 @@ TEST(ResourceTest, create_with_servicename)
   ResourceAttributes expected_attributes = {
       {"version", static_cast<uint32_t>(1)},
       {"cost", 234.23},
-      {SemanticConventions::kTelemetrySdkLanguage, "cpp"},
-      {SemanticConventions::kTelemetrySdkName, "opentelemetry"},
-      {SemanticConventions::kTelemetrySdkVersion, OPENTELEMETRY_SDK_VERSION},
-      {SemanticConventions::kServiceName, "backend"},
+      {semconv::telemetry::kTelemetrySdkLanguage, "cpp"},
+      {semconv::telemetry::kTelemetrySdkName, "opentelemetry"},
+      {semconv::telemetry::kTelemetrySdkVersion, OPENTELEMETRY_SDK_VERSION},
+      {semconv::service::kServiceName, "backend"},
   };
   ResourceAttributes attributes = {
       {"service.name", "backend"}, {"version", static_cast<uint32_t>(1)}, {"cost", 234.23}};
@@ -105,10 +115,10 @@ TEST(ResourceTest, create_with_servicename)
 TEST(ResourceTest, create_with_emptyatrributes)
 {
   ResourceAttributes expected_attributes = {
-      {SemanticConventions::kTelemetrySdkLanguage, "cpp"},
-      {SemanticConventions::kTelemetrySdkName, "opentelemetry"},
-      {SemanticConventions::kTelemetrySdkVersion, OPENTELEMETRY_SDK_VERSION},
-      {SemanticConventions::kServiceName, "unknown_service"},
+      {semconv::telemetry::kTelemetrySdkLanguage, "cpp"},
+      {semconv::telemetry::kTelemetrySdkName, "opentelemetry"},
+      {semconv::telemetry::kTelemetrySdkVersion, OPENTELEMETRY_SDK_VERSION},
+      {semconv::service::kServiceName, "unknown_service"},
   };
   ResourceAttributes attributes = {};
   auto resource                 = Resource::Create(attributes);
@@ -266,4 +276,19 @@ TEST(ResourceTest, OtelResourceDetectorEmptyEnv)
   }
   EXPECT_EQ(received_attributes.size(), expected_attributes.size());
 }
+
 #endif
+
+TEST(ResourceTest, DerivedResourceDetector)
+{
+  TestResourceDetector detector;
+
+  detector.attributes             = {{"key", "value"}};
+  detector.schema_url             = "https://opentelemetry.io/schemas/v3.1.4";
+  const auto resource             = detector.Detect();
+  const auto &received_attributes = resource.GetAttributes();
+
+  EXPECT_EQ(received_attributes.size(), 1);
+  EXPECT_EQ(resource.GetSchemaURL(), detector.schema_url);
+  EXPECT_TRUE(received_attributes.find("key") != received_attributes.end());
+}

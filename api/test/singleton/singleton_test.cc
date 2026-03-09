@@ -2,14 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <gtest/gtest.h>
-#include <stdint.h>
+#include <stdint.h>  // IWYU pragma: keep
 
-/*
-  TODO:
-  Once singleton are supported for windows,
-  expand this test to use ::LoadLibrary, ::GetProcAddress, ::FreeLibrary
-*/
-#ifndef _WIN32
+#ifdef _WIN32
+#  include <windows.h>
+#else
 #  include <dlfcn.h>
 #endif
 
@@ -23,7 +20,6 @@
 #include "opentelemetry/common/key_value_iterable.h"
 #include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/nostd/string_view.h"
-#include "opentelemetry/nostd/utility.h"
 #include "opentelemetry/trace/default_span.h"
 #include "opentelemetry/trace/noop.h"
 #include "opentelemetry/trace/provider.h"
@@ -36,7 +32,7 @@
 
 using namespace opentelemetry;
 
-void do_something()
+static void do_something()
 {
   do_something_in_a();
   do_something_in_b();
@@ -58,57 +54,90 @@ void do_something()
 #ifndef BAZEL_BUILD
   /* Call do_something_in_g() */
 
+#  ifdef _WIN32
+  HMODULE component_g = LoadLibraryA("component_g.dll");
+#  elif defined(__APPLE__)
+  void *component_g = dlopen("libcomponent_g.dylib", RTLD_NOW);
+#  else
   void *component_g = dlopen("libcomponent_g.so", RTLD_NOW);
+#  endif
+
   EXPECT_NE(component_g, nullptr);
 
+#  ifdef _WIN32
+  auto *func_g = reinterpret_cast<void (*)()>(GetProcAddress(component_g, "do_something_in_g"));
+#  else
   auto *func_g = reinterpret_cast<void (*)()>(dlsym(component_g, "do_something_in_g"));
+#  endif
+
   EXPECT_NE(func_g, nullptr);
 
   (*func_g)();
 
+#  ifdef _WIN32
+  FreeLibrary(component_g);
+#  else
   dlclose(component_g);
+#  endif
 
   /* Call do_something_in_h() */
 
+#  ifdef _WIN32
+  HMODULE component_h = LoadLibraryA("component_h.dll");
+#  elif defined(__APPLE__)
+  void *component_h = dlopen("libcomponent_h.dylib", RTLD_NOW);
+#  else
   void *component_h = dlopen("libcomponent_h.so", RTLD_NOW);
+#  endif
+
   EXPECT_NE(component_h, nullptr);
 
+#  ifdef _WIN32
+  auto *func_h = reinterpret_cast<void (*)()>(GetProcAddress(component_h, "do_something_in_h"));
+#  else
   auto *func_h = reinterpret_cast<void (*)()>(dlsym(component_h, "do_something_in_h"));
+#  endif
+
   EXPECT_NE(func_h, nullptr);
 
   (*func_h)();
 
+#  ifdef _WIN32
+  FreeLibrary(component_h);
+#  else
   dlclose(component_h);
-#endif
+#  endif
+
+#endif /* BAZEL_BUILD */
 }
 
-int span_a_lib_count   = 0;
-int span_a_f1_count    = 0;
-int span_a_f2_count    = 0;
-int span_b_lib_count   = 0;
-int span_b_f1_count    = 0;
-int span_b_f2_count    = 0;
-int span_c_lib_count   = 0;
-int span_c_f1_count    = 0;
-int span_c_f2_count    = 0;
-int span_d_lib_count   = 0;
-int span_d_f1_count    = 0;
-int span_d_f2_count    = 0;
-int span_e_lib_count   = 0;
-int span_e_f1_count    = 0;
-int span_e_f2_count    = 0;
-int span_f_lib_count   = 0;
-int span_f_f1_count    = 0;
-int span_f_f2_count    = 0;
-int span_g_lib_count   = 0;
-int span_g_f1_count    = 0;
-int span_g_f2_count    = 0;
-int span_h_lib_count   = 0;
-int span_h_f1_count    = 0;
-int span_h_f2_count    = 0;
-int unknown_span_count = 0;
+static int span_a_lib_count   = 0;
+static int span_a_f1_count    = 0;
+static int span_a_f2_count    = 0;
+static int span_b_lib_count   = 0;
+static int span_b_f1_count    = 0;
+static int span_b_f2_count    = 0;
+static int span_c_lib_count   = 0;
+static int span_c_f1_count    = 0;
+static int span_c_f2_count    = 0;
+static int span_d_lib_count   = 0;
+static int span_d_f1_count    = 0;
+static int span_d_f2_count    = 0;
+static int span_e_lib_count   = 0;
+static int span_e_f1_count    = 0;
+static int span_e_f2_count    = 0;
+static int span_f_lib_count   = 0;
+static int span_f_f1_count    = 0;
+static int span_f_f2_count    = 0;
+static int span_g_lib_count   = 0;
+static int span_g_f1_count    = 0;
+static int span_g_f2_count    = 0;
+static int span_h_lib_count   = 0;
+static int span_h_f1_count    = 0;
+static int span_h_f2_count    = 0;
+static int unknown_span_count = 0;
 
-void reset_counts()
+static void reset_counts()
 {
   span_a_lib_count   = 0;
   span_a_f1_count    = 0;
@@ -140,6 +169,13 @@ void reset_counts()
 class MyTracer : public trace::Tracer
 {
 public:
+  MyTracer()
+  {
+#if OPENTELEMETRY_ABI_VERSION_NO >= 2
+    UpdateEnabled(true);
+#endif
+  }
+
   nostd::shared_ptr<trace::Span> StartSpan(
       nostd::string_view name,
       const common::KeyValueIterable & /* attributes */,
@@ -295,7 +331,7 @@ public:
 #endif
 };
 
-void setup_otel()
+static void setup_otel()
 {
   std::shared_ptr<opentelemetry::trace::TracerProvider> provider = MyTracerProvider::Create();
 
@@ -307,7 +343,7 @@ void setup_otel()
   trace_api::Provider::SetTracerProvider(provider);
 }
 
-void cleanup_otel()
+static void cleanup_otel()
 {
   std::shared_ptr<opentelemetry::trace::TracerProvider> provider(
       new opentelemetry::trace::NoopTracerProvider());
@@ -315,6 +351,14 @@ void cleanup_otel()
   // Set the global tracer provider
   trace_api::Provider::SetTracerProvider(provider);
 }
+
+// TODO: Remove once windows api singletons are supported.
+// See https://github.com/open-telemetry/opentelemetry-cpp/issues/2534
+#ifdef _WIN32
+#  define RUN_FAILING_WINDOWS_TEST 0
+#else
+#  define RUN_FAILING_WINDOWS_TEST 1
+#endif
 
 TEST(SingletonTest, Uniqueness)
 {
@@ -357,26 +401,31 @@ TEST(SingletonTest, Uniqueness)
   EXPECT_EQ(span_b_lib_count, 1);
   EXPECT_EQ(span_b_f1_count, 2);
   EXPECT_EQ(span_b_f2_count, 1);
-  EXPECT_EQ(span_c_lib_count, 1);
-  EXPECT_EQ(span_c_f1_count, 2);
-  EXPECT_EQ(span_c_f2_count, 1);
-  EXPECT_EQ(span_d_lib_count, 1);
-  EXPECT_EQ(span_d_f1_count, 2);
-  EXPECT_EQ(span_d_f2_count, 1);
-  EXPECT_EQ(span_e_lib_count, 1);
-  EXPECT_EQ(span_e_f1_count, 2);
-  EXPECT_EQ(span_e_f2_count, 1);
-  EXPECT_EQ(span_f_lib_count, 1);
-  EXPECT_EQ(span_f_f1_count, 2);
-  EXPECT_EQ(span_f_f2_count, 1);
+
+#if RUN_FAILING_WINDOWS_TEST
+  EXPECT_EQ(span_c_lib_count, 1);  // Fails with shared libraries on Windows
+  EXPECT_EQ(span_c_f1_count, 2);   // Fails with shared libraries on Windows
+  EXPECT_EQ(span_c_f2_count, 1);   // Fails with shared libraries on Windows
+  EXPECT_EQ(span_d_lib_count, 1);  // Fails with shared libraries on Windows
+  EXPECT_EQ(span_d_f1_count, 2);   // Fails with shared libraries on Windows
+  EXPECT_EQ(span_d_f2_count, 1);   // Fails with shared libraries on Windows
+  EXPECT_EQ(span_e_lib_count, 1);  // Fails with shared libraries on Windows
+  EXPECT_EQ(span_e_f1_count, 2);   // Fails with shared libraries on Windows
+  EXPECT_EQ(span_e_f2_count, 1);   // Fails with shared libraries on Windows
+  EXPECT_EQ(span_f_lib_count, 1);  // Fails with shared libraries on Windows
+  EXPECT_EQ(span_f_f1_count, 2);   // Fails with shared libraries on Windows
+  EXPECT_EQ(span_f_f2_count, 1);   // Fails with shared libraries on Windows
+#endif
 
 #ifndef BAZEL_BUILD
-  EXPECT_EQ(span_g_lib_count, 1);
-  EXPECT_EQ(span_g_f1_count, 2);
-  EXPECT_EQ(span_g_f2_count, 1);
-  EXPECT_EQ(span_h_lib_count, 1);
-  EXPECT_EQ(span_h_f1_count, 2);
-  EXPECT_EQ(span_h_f2_count, 1);
+#  if RUN_FAILING_WINDOWS_TEST
+  EXPECT_EQ(span_g_lib_count, 1);  // Fails with shared libraries on Windows
+  EXPECT_EQ(span_g_f1_count, 2);   // Fails with shared libraries on Windows
+  EXPECT_EQ(span_g_f2_count, 1);   // Fails with shared libraries on Windows
+  EXPECT_EQ(span_h_lib_count, 1);  // Fails with shared libraries on Windows
+  EXPECT_EQ(span_h_f1_count, 2);   // Fails with shared libraries on Windows
+  EXPECT_EQ(span_h_f2_count, 1);   // Fails with shared libraries on Windows
+#  endif
 #endif
 
   EXPECT_EQ(unknown_span_count, 0);

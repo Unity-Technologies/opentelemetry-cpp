@@ -90,10 +90,16 @@ private:
   nostd::shared_ptr<Logger> logger_;
 };
 
+#if OPENTELEMETRY_ABI_VERSION_NO < 2
+/**
+ * No-op implementation of a EventLogger.
+ * @deprecated
+ */
 class NoopEventLogger final : public EventLogger
 {
 public:
   NoopEventLogger() : logger_{nostd::shared_ptr<NoopLogger>(new NoopLogger())} {}
+  ~NoopEventLogger() override = default;
 
   const nostd::string_view GetName() noexcept override { return "noop event logger"; }
 
@@ -107,12 +113,14 @@ private:
 
 /**
  * No-op implementation of a EventLoggerProvider.
+ * @deprecated
  */
 class NoopEventLoggerProvider final : public EventLoggerProvider
 {
 public:
   NoopEventLoggerProvider() : event_logger_{nostd::shared_ptr<EventLogger>(new NoopEventLogger())}
   {}
+  ~NoopEventLoggerProvider() override = default;
 
   nostd::shared_ptr<EventLogger> CreateEventLogger(
       nostd::shared_ptr<Logger> /*delegate_logger*/,
@@ -124,6 +132,7 @@ public:
 private:
   nostd::shared_ptr<EventLogger> event_logger_;
 };
+#endif
 
 }  // namespace logs
 OPENTELEMETRY_END_NAMESPACE

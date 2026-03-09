@@ -5,18 +5,38 @@
 // ambiguity with `nostd::variant` if compiled with Visual Studio 2015. Other
 // modern compilers are unaffected.
 #include <grpcpp/grpcpp.h>
+#include <grpcpp/security/credentials.h>
+#include <grpcpp/support/status.h>
+
+#include <stdint.h>
+#include <stdlib.h>
+#include <iostream>
+#include <string>
+#include <utility>
+
+#include "opentelemetry/context/context.h"
+#include "opentelemetry/context/propagation/global_propagator.h"
+#include "opentelemetry/context/propagation/text_map_propagator.h"
+#include "opentelemetry/context/runtime_context.h"
+#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/semconv/incubating/rpc_attributes.h"
+#include "opentelemetry/semconv/network_attributes.h"
+#include "opentelemetry/trace/propagation/http_trace_context.h"
+#include "opentelemetry/trace/scope.h"
+#include "opentelemetry/trace/span.h"
+#include "opentelemetry/trace/span_metadata.h"
+#include "opentelemetry/trace/span_startoptions.h"
+#include "opentelemetry/trace/tracer.h"
+#include "tracer_common.h"
+
 #ifdef BAZEL_BUILD
 #  include "examples/grpc/protos/messages.grpc.pb.h"
+#  include "examples/grpc/protos/messages.pb.h"
 #else
 #  include "messages.grpc.pb.h"
+#  include "messages.pb.h"
 #endif
-
-#include <iostream>
-#include <memory>
-#include <string>
-
-#include "opentelemetry/trace/semantic_conventions.h"
-#include "tracer_common.h"
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -29,6 +49,7 @@ using grpc_example::GreetResponse;
 namespace
 {
 namespace context = opentelemetry::context;
+namespace semconv = opentelemetry::semconv;
 using namespace opentelemetry::trace;
 class GreeterClient
 {
@@ -49,11 +70,10 @@ public:
     std::string span_name = "GreeterClient/Greet";
     auto span             = get_tracer("grpc")->StartSpan(
         span_name,
-        {{SemanticConventions::kRpcSystem, "grpc"},
-                     {SemanticConventions::kRpcService, "grpc-example.GreetService"},
-                     {SemanticConventions::kRpcMethod, "Greet"},
-                     {SemanticConventions::kNetworkPeerAddress, ip},
-                     {SemanticConventions::kNetworkPeerPort, port}},
+        {{semconv::rpc::kRpcSystemName, "grpc"},
+                     {semconv::rpc::kRpcMethod, "grpc-example.GreetService/Greet"},
+                     {semconv::network::kNetworkPeerAddress, ip},
+                     {semconv::network::kNetworkPeerPort, port}},
         options);
 
     auto scope = get_tracer("grpc-client")->WithActiveSpan(span);
@@ -69,7 +89,7 @@ public:
     if (status.ok())
     {
       span->SetStatus(StatusCode::kOk);
-      span->SetAttribute(SemanticConventions::kRpcGrpcStatusCode, status.error_code());
+      span->SetAttribute(semconv::rpc::kRpcResponseStatusCode, status.error_message());
       // Make sure to end your spans!
       span->End();
       return response.response();
@@ -78,7 +98,7 @@ public:
     {
       std::cout << status.error_code() << ": " << status.error_message() << '\n';
       span->SetStatus(StatusCode::kError);
-      span->SetAttribute(SemanticConventions::kRpcGrpcStatusCode, status.error_code());
+      span->SetAttribute(semconv::rpc::kRpcResponseStatusCode, status.error_message());
       // Make sure to end your spans!
       span->End();
       return "RPC failed";
@@ -106,15 +126,12 @@ int main(int argc, char **argv)
       opentelemetry::nostd::shared_ptr<context::propagation::TextMapPropagator>(
           new propagation::HttpTraceContext()));
   constexpr uint16_t default_port = 8800;
-  uint16_t port;
+  uint16_t port{default_port};
   if (argc > 1)
   {
-    port = atoi(argv[1]);
+    port = static_cast<uint16_t>(atoi(argv[1]));
   }
-  else
-  {
-    port = default_port;
-  }
+
   RunClient(port);
   CleanupTracer();
   return 0;

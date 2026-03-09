@@ -6,6 +6,8 @@ target_link_libraries(metrics_common_test_utils opentelemetry_metrics)
 
 foreach(
   testname
+  meter_config_test
+  meter_provider_set_test
   meter_provider_sdk_test
   meter_test
   view_registry_test
@@ -19,6 +21,7 @@ foreach(
   cardinality_limit_test
   histogram_test
   sync_metric_storage_counter_test
+  sync_metric_storage_gauge_test
   sync_metric_storage_histogram_test
   sync_metric_storage_up_down_counter_test
   async_metric_storage_test
@@ -26,14 +29,19 @@ foreach(
   observer_result_test
   sync_instruments_test
   async_instruments_test
+  metric_collector_test
   metric_reader_test
   observable_registry_test
   periodic_exporting_metric_reader_test
-  instrument_metadata_validator_test)
+  instrument_metadata_validator_test
+  metric_test_stress
+  instrument_descriptor_test
+  multi_observer_test)
   add_executable(${testname} "${testname}.cc")
   target_link_libraries(
-    ${testname} ${GTEST_BOTH_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}
+    ${testname} ${GTEST_BOTH_LIBRARIES} ${GMOCK_LIB} ${CMAKE_THREAD_LIBS_INIT}
     metrics_common_test_utils opentelemetry_resources)
+  target_compile_definitions(${testname} PRIVATE UNIT_TESTING)
   gtest_add_tests(
     TARGET ${testname}
     TEST_PREFIX metrics.
@@ -73,4 +81,6 @@ if(WITH_BENCHMARK)
     metrics_common_test_utils opentelemetry_common opentelemetry_resources)
 endif()
 
-add_subdirectory(exemplar)
+if(WITH_METRICS_EXEMPLAR_PREVIEW)
+  add_subdirectory(exemplar)
+endif()

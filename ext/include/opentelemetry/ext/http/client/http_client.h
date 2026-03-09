@@ -226,9 +226,38 @@ struct HttpSslOptions
   std::string ssl_cipher_suite{};
 };
 
+using SecondsDecimal = std::chrono::duration<float, std::ratio<1>>;
+
+struct RetryPolicy
+{
+  RetryPolicy() = default;
+
+  RetryPolicy(std::uint32_t input_max_attempts,
+              SecondsDecimal input_initial_backoff,
+              SecondsDecimal input_max_backoff,
+              float input_backoff_multiplier)
+      : max_attempts(input_max_attempts),
+        initial_backoff(input_initial_backoff),
+        max_backoff(input_max_backoff),
+        backoff_multiplier(input_backoff_multiplier)
+  {}
+
+  std::uint32_t max_attempts{};
+  SecondsDecimal initial_backoff{};
+  SecondsDecimal max_backoff{};
+  float backoff_multiplier{};
+};
+
 class Request
 {
 public:
+  Request() = default;
+
+  Request(const Request &)            = delete;
+  Request(Request &&)                 = delete;
+  Request &operator=(const Request &) = delete;
+  Request &operator=(Request &&)      = delete;
+
   virtual void SetMethod(Method method) noexcept = 0;
 
   virtual void SetUri(nostd::string_view uri) noexcept = 0;
@@ -245,12 +274,23 @@ public:
 
   virtual void SetCompression(const Compression &compression) noexcept = 0;
 
+  virtual void EnableLogging(bool is_log_enabled) noexcept = 0;
+
+  virtual void SetRetryPolicy(const RetryPolicy &retry_policy) noexcept = 0;
+
   virtual ~Request() = default;
 };
 
 class Response
 {
 public:
+  Response() = default;
+
+  Response(const Response &)            = delete;
+  Response(Response &&)                 = delete;
+  Response &operator=(const Response &) = delete;
+  Response &operator=(Response &&)      = delete;
+
   virtual const Body &GetBody() const noexcept = 0;
 
   virtual bool ForEachHeader(
@@ -318,6 +358,13 @@ private:
 class EventHandler
 {
 public:
+  EventHandler() = default;
+
+  EventHandler(const EventHandler &)            = delete;
+  EventHandler(EventHandler &&)                 = delete;
+  EventHandler &operator=(const EventHandler &) = delete;
+  EventHandler &operator=(EventHandler &&)      = delete;
+
   virtual void OnResponse(Response &) noexcept = 0;
 
   virtual void OnEvent(SessionState, nostd::string_view) noexcept = 0;
@@ -328,6 +375,13 @@ public:
 class Session
 {
 public:
+  Session() = default;
+
+  Session(const Session &)            = delete;
+  Session(Session &&)                 = delete;
+  Session &operator=(const Session &) = delete;
+  Session &operator=(Session &&)      = delete;
+
   virtual std::shared_ptr<Request> CreateRequest() noexcept = 0;
 
   virtual void SendRequest(std::shared_ptr<EventHandler>) noexcept = 0;
@@ -344,6 +398,13 @@ public:
 class HttpClient
 {
 public:
+  HttpClient() = default;
+
+  HttpClient(const HttpClient &)            = delete;
+  HttpClient(HttpClient &&)                 = delete;
+  HttpClient &operator=(const HttpClient &) = delete;
+  HttpClient &operator=(HttpClient &&)      = delete;
+
   virtual std::shared_ptr<Session> CreateSession(nostd::string_view url) noexcept = 0;
 
   virtual bool CancelAllSessions() noexcept = 0;
@@ -358,6 +419,13 @@ public:
 class HttpClientSync
 {
 public:
+  HttpClientSync() = default;
+
+  HttpClientSync(const HttpClientSync &)            = delete;
+  HttpClientSync(HttpClientSync &&)                 = delete;
+  HttpClientSync &operator=(const HttpClientSync &) = delete;
+  HttpClientSync &operator=(HttpClientSync &&)      = delete;
+
   Result GetNoSsl(const nostd::string_view &url,
                   const Headers &headers         = {{}},
                   const Compression &compression = Compression::kNone) noexcept

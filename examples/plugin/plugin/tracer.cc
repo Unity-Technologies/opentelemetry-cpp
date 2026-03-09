@@ -9,7 +9,6 @@
 #include "opentelemetry/common/attribute_value.h"
 #include "opentelemetry/common/timestamp.h"
 #include "opentelemetry/context/context_value.h"
-#include "opentelemetry/nostd/utility.h"
 #include "opentelemetry/trace/span_context.h"
 #include "opentelemetry/trace/span_metadata.h"
 #include "tracer.h"
@@ -35,6 +34,11 @@ public:
   }
 
   ~Span() override { std::cout << "~Span\n"; }
+
+  Span(const Span &)            = delete;
+  Span &operator=(const Span &) = delete;
+  Span(Span &&)                 = delete;
+  Span &operator=(Span &&)      = delete;
 
   // opentelemetry::trace::Span
   void SetAttribute(nostd::string_view /*name*/,
@@ -82,7 +86,12 @@ private:
 };
 }  // namespace
 
-Tracer::Tracer(nostd::string_view /*output*/) {}
+Tracer::Tracer(nostd::string_view /*output*/)
+{
+#if OPENTELEMETRY_ABI_VERSION_NO >= 2
+  UpdateEnabled(true);
+#endif
+}
 
 nostd::shared_ptr<trace::Span> Tracer::StartSpan(nostd::string_view name,
                                                  const common::KeyValueIterable &attributes,

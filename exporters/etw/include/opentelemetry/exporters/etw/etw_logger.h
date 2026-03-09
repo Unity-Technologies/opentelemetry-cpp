@@ -31,6 +31,11 @@
 #include "opentelemetry/trace/span_id.h"
 #include "opentelemetry/trace/trace_id.h"
 
+#include "opentelemetry/context/runtime_context.h"
+#include "opentelemetry/trace/span.h"
+#include "opentelemetry/trace/span_context.h"
+#include "opentelemetry/trace/span_metadata.h"
+
 #include "opentelemetry/exporters/etw/etw_config.h"
 #include "opentelemetry/exporters/etw/etw_fields.h"
 #include "opentelemetry/exporters/etw/etw_properties.h"
@@ -121,7 +126,7 @@ private:
 
   std::unordered_map<std::string, opentelemetry::common::AttributeValue> attributes_map_;
   opentelemetry::common::AttributeValue body_ = opentelemetry::nostd::string_view();
-  opentelemetry::common::SystemTimestamp timestamp_;
+  opentelemetry::common::SystemTimestamp timestamp_;  // unset (epoch) by default
   opentelemetry::common::SystemTimestamp observed_timestamp_ = std::chrono::system_clock::now();
 
   opentelemetry::trace::TraceId trace_id_;
@@ -194,7 +199,44 @@ public:
 
   nostd::unique_ptr<opentelemetry::logs::LogRecord> CreateLogRecord() noexcept
   {
-    return nostd::unique_ptr<opentelemetry::logs::LogRecord>(new LogRecord());
+    nostd::unique_ptr<LogRecord> log_record(new LogRecord());
+
+    // Populate trace context from the current active span (if any)
+    if (opentelemetry::context::RuntimeContext::GetCurrent().HasKey(opentelemetry::trace::kSpanKey))
+    {
+      opentelemetry::context::ContextValue context_value =
+          opentelemetry::context::RuntimeContext::GetCurrent().GetValue(
+              opentelemetry::trace::kSpanKey);
+      if (opentelemetry::nostd::holds_alternative<
+              opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span>>(context_value))
+      {
+        opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span> &span =
+            opentelemetry::nostd::get<opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span>>(
+                context_value);
+        if (span)
+        {
+          log_record->SetTraceId(span->GetContext().trace_id());
+          log_record->SetSpanId(span->GetContext().span_id());
+          log_record->SetTraceFlags(span->GetContext().trace_flags());
+        }
+      }
+      else if (opentelemetry::nostd::holds_alternative<
+                   opentelemetry::nostd::shared_ptr<opentelemetry::trace::SpanContext>>(
+                   context_value))
+      {
+        opentelemetry::nostd::shared_ptr<opentelemetry::trace::SpanContext> &span_context =
+            opentelemetry::nostd::get<
+                opentelemetry::nostd::shared_ptr<opentelemetry::trace::SpanContext>>(context_value);
+        if (span_context)
+        {
+          log_record->SetTraceId(span_context->trace_id());
+          log_record->SetSpanId(span_context->span_id());
+          log_record->SetTraceFlags(span_context->trace_flags());
+        }
+      }
+    }
+
+    return nostd::unique_ptr<opentelemetry::logs::LogRecord>(log_record.release());
   }
 
   using opentelemetry::logs::Logger::EmitLogRecord;
@@ -305,6 +347,11 @@ public:
     }
     evt[ETW_FIELD_PAYLOAD_NAME]              = std::string(name.data(), name.size());
     std::chrono::system_clock::time_point ts = timestamp;
+    // Per OTel Log Data Model: if timestamp is unset (epoch), fall back to observed time (now)
+    if (ts.time_since_epoch().count() == 0)
+    {
+      ts = std::chrono::system_clock::now();
+    }
     int64_t tsNs =
         std::chrono::duration_cast<std::chrono::nanoseconds>(ts.time_since_epoch()).count();
     evt[ETW_FIELD_TIMESTAMP] = utils::formatUtcTimestampNsAsISO8601(tsNs);
@@ -323,6 +370,35 @@ public:
     }
     evt[ETW_FIELD_LOG_SEVERITY_NUM] = static_cast<uint32_t>(severity);
     evt[ETW_FIELD_LOG_BODY]         = std::string(body.data(), body.length());
+
+#if defined(OPENTELEMETRY_ATTRIBUTE_TIMESTAMP_PREVIEW)
+
+    for (const auto &attr : cfg.timestampAttributes)
+    {
+      auto it = evt.find(attr);
+      if (it != evt.end())
+      {
+        auto value_index = it->second.index();
+        if (value_index != exporter_etw::PropertyType::kTypeInt64 &&
+            value_index != exporter_etw::PropertyType::kTypeUInt64)
+        {
+          continue;
+        }
+        int64_t filetime = value_index == exporter_etw::PropertyType::kTypeUInt64
+                               ? nostd::get<uint64_t>(it->second)
+                               : nostd::get<int64_t>(it->second);
+        constexpr int64_t FILETIME_EPOCH_DIFF = 11644473600LL;  // Seconds from 1601 to 1970
+        constexpr int64_t HUNDRED_NANOSECONDS_PER_SECOND = 10000000LL;
+        int64_t unix_time_seconds =
+            (filetime / HUNDRED_NANOSECONDS_PER_SECOND) - FILETIME_EPOCH_DIFF;
+        int64_t unix_time_nanos =
+            unix_time_seconds * 1'000'000'000 + (filetime % HUNDRED_NANOSECONDS_PER_SECOND) * 100;
+        it->second = utils::formatUtcTimestampNsAsISO8601(unix_time_nanos);
+      }
+    }
+
+#endif  // defined(OPENTELEMETRY_ATTRIBUTE_TIMESTAMP_PREVIEW)
+
     etwProvider().write(provHandle, evt, nullptr, nullptr, 0, encoding);
   }
 
@@ -353,6 +429,12 @@ public:
     GetOption(options, "enableActivityId", config_.enableActivityId, false);
     GetOption(options, "enableTableNameMappings", config_.enableTableNameMappings, false);
     GetOption(options, "tableNameMappings", config_.tableNameMappings, {});
+
+#if defined(OPENTELEMETRY_ATTRIBUTE_TIMESTAMP_PREVIEW)
+
+    GetOption(options, "timestampAttributes", config_.timestampAttributes, {});
+
+#endif  // defined(OPENTELEMETRY_ATTRIBUTE_TIMESTAMP_PREVIEW)
 
     // Determines what encoding to use for ETW events: TraceLogging Dynamic, MsgPack, XML, etc.
     config_.encoding = GetEncoding(options);

@@ -3,7 +3,6 @@
 
 #include <gtest/gtest.h>
 #include <stdint.h>
-#include <algorithm>
 #include <map>
 #include <string>
 #include <utility>
@@ -13,6 +12,7 @@
 #include "opentelemetry/context/propagation/composite_propagator.h"
 #include "opentelemetry/context/propagation/text_map_propagator.h"
 #include "opentelemetry/context/runtime_context.h"
+#include "opentelemetry/nostd/function_ref.h"
 #include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/nostd/span.h"
 #include "opentelemetry/nostd/string_view.h"
@@ -73,13 +73,11 @@ public:
     propogator_list.push_back(std::move(b3_propogator));
 
     composite_propagator_ =
-        new context::propagation::CompositePropagator(std::move(propogator_list));
+        std::make_shared<context::propagation::CompositePropagator>(std::move(propogator_list));
   }
 
-  ~CompositePropagatorTest() override { delete composite_propagator_; }
-
 protected:
-  context::propagation::CompositePropagator *composite_propagator_;
+  std::shared_ptr<context::propagation::CompositePropagator> composite_propagator_;
 };
 
 TEST_F(CompositePropagatorTest, Extract)

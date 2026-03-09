@@ -1,6 +1,8 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
@@ -30,6 +32,18 @@ cc_library(
         "//api",
         "//sdk:headers",
         "//sdk/src/common/platform:fork",
+    ],
+)
+
+cc_library(
+    name = "disabled",
+    srcs = [
+        "disabled.cc",
+    ],
+    include_prefix = "src/common",
+    deps = [
+        "//api",
+        "//sdk:headers",
     ],
 )
 

@@ -3,12 +3,14 @@
 
 #pragma once
 
+#include <memory>
 #include <utility>
 #include <vector>
 
 #include "opentelemetry/nostd/function_ref.h"
 #include "opentelemetry/nostd/variant.h"
 #include "opentelemetry/sdk/metrics/data/metric_data.h"
+#include "opentelemetry/sdk/metrics/export/metric_filter.h"
 #include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
@@ -48,6 +50,8 @@ struct ScopeMetrics
   inline ScopeMetrics &operator=(const ScopeMetrics &) = default;
 
   inline ScopeMetrics &operator=(ScopeMetrics &&) = default;
+
+  ~ScopeMetrics() = default;
 };
 
 struct ResourceMetrics
@@ -68,6 +72,8 @@ struct ResourceMetrics
   inline ResourceMetrics &operator=(const ResourceMetrics &) = default;
 
   inline ResourceMetrics &operator=(ResourceMetrics &&) = default;
+
+  ~ResourceMetrics() = default;
 };
 
 /**
@@ -83,10 +89,10 @@ public:
   MetricProducer()          = default;
   virtual ~MetricProducer() = default;
 
-  MetricProducer(const MetricProducer &)  = delete;
-  MetricProducer(const MetricProducer &&) = delete;
-  void operator=(const MetricProducer &)  = delete;
-  void operator=(const MetricProducer &&) = delete;
+  MetricProducer(const MetricProducer &)            = delete;
+  MetricProducer(MetricProducer &&)                 = delete;
+  MetricProducer &operator=(const MetricProducer &) = delete;
+  MetricProducer &operator=(MetricProducer &&)      = delete;
 
   enum class Status
   {

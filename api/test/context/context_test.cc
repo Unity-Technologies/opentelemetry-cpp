@@ -5,10 +5,10 @@
 #include <stdint.h>
 #include <map>
 #include <string>
+#include <utility>
 
 #include "opentelemetry/context/context.h"
 #include "opentelemetry/context/context_value.h"
-#include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/nostd/string_view.h"
 #include "opentelemetry/nostd/variant.h"
 

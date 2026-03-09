@@ -4,10 +4,12 @@
 #include <gtest/gtest.h>
 #include <stddef.h>
 #include <algorithm>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/unique_ptr.h"
 
 using opentelemetry::nostd::shared_ptr;
 
@@ -17,6 +19,11 @@ public:
   explicit A(bool &destructed) noexcept : destructed_{destructed} { destructed_ = false; }
 
   ~A() { destructed_ = true; }
+
+  A(const A &)            = delete;
+  A(A &&)                 = delete;
+  A &operator=(const A &) = delete;
+  A &operator=(A &&)      = delete;
 
 private:
   bool &destructed_;
@@ -32,13 +39,16 @@ class C
 {
 public:
   virtual ~C() {}
+  C() = default;
+
+  C(const C &)            = delete;
+  C(C &&)                 = delete;
+  C &operator=(const C &) = delete;
+  C &operator=(C &&)      = delete;
 };
 
 class D : public C
-{
-public:
-  ~D() override {}
-};
+{};
 
 TEST(SharedPtrTest, DefaultConstruction)
 {
@@ -87,9 +97,18 @@ TEST(SharedPtrTest, MoveConstructionFromStdSharedPtr)
   EXPECT_EQ(ptr2.get(), value);
 }
 
+TEST(SharedPtrTest, MoveConstructionFromNoStdUniquePtr)
+{
+  opentelemetry::nostd::unique_ptr<int> value(new int{123});
+  auto p = value.get();
+  shared_ptr<int> ptr{std::move(value)};
+  EXPECT_EQ(value.get(), nullptr);  // NOLINT
+  EXPECT_EQ(ptr.get(), p);
+}
+
 TEST(SharedPtrTest, Destruction)
 {
-  bool was_destructed;
+  bool was_destructed{};
   shared_ptr<A>{new A{was_destructed}};  // NOLINT
   EXPECT_TRUE(was_destructed);
 }

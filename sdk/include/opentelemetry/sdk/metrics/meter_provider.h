@@ -11,6 +11,7 @@
 #include "opentelemetry/metrics/meter_provider.h"
 #include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/sdk/metrics/export/metric_filter.h"
 #include "opentelemetry/sdk/metrics/meter_context.h"
 #include "opentelemetry/sdk/metrics/metric_reader.h"
 #include "opentelemetry/sdk/metrics/view/instrument_selector.h"
@@ -19,6 +20,9 @@
 #include "opentelemetry/sdk/metrics/view/view_registry.h"
 #include "opentelemetry/sdk/resource/resource.h"
 #include "opentelemetry/version.h"
+
+#include "opentelemetry/sdk/instrumentationscope/scope_configurator.h"
+#include "opentelemetry/sdk/metrics/meter.h"
 
 #ifdef ENABLE_METRICS_EXEMPLAR_PREVIEW
 #  include "opentelemetry/sdk/metrics/exemplar/filter_type.h"
@@ -34,19 +38,30 @@ class OPENTELEMETRY_EXPORT MeterProvider final : public opentelemetry::metrics::
 {
 public:
   /**
-   * Initialize a new meter provider
+   * Initialize a new meter provider.
    * @param views The views for this meter provider
    * @param resource  The resources for this meter provider.
+   * @param meter_configurator Provides access to a function that computes the MeterConfig for
+   * Meters provided by this MeterProvider.
    */
   MeterProvider(
       std::unique_ptr<ViewRegistry> views     = std::unique_ptr<ViewRegistry>(new ViewRegistry()),
-      const sdk::resource::Resource &resource = sdk::resource::Resource::Create({})) noexcept;
+      const sdk::resource::Resource &resource = sdk::resource::Resource::Create({}),
+      std::unique_ptr<instrumentationscope::ScopeConfigurator<MeterConfig>> meter_configurator =
+          std::make_unique<instrumentationscope::ScopeConfigurator<MeterConfig>>(
+              instrumentationscope::ScopeConfigurator<MeterConfig>::Builder(MeterConfig::Default())
+                  .Build())) noexcept;
 
   /**
    * Initialize a new meter provider with a specified context
    * @param context The owned meter configuration/pipeline for this provider.
    */
   explicit MeterProvider(std::unique_ptr<MeterContext> context) noexcept;
+
+  MeterProvider(const MeterProvider &)            = delete;
+  MeterProvider(MeterProvider &&)                 = delete;
+  MeterProvider &operator=(const MeterProvider &) = delete;
+  MeterProvider &operator=(MeterProvider &&)      = delete;
 
   /*
     Make sure GetMeter() helpers from the API are seen in overload resolution.
@@ -79,17 +94,23 @@ public:
   const sdk::resource::Resource &GetResource() const noexcept;
 
   /**
-   * Attaches a metric reader to list of configured readers for this Meter providers.
-   * @param reader The metric reader for this meter provider. This
-   * must not be a nullptr.
+   * Create a MetricCollector from a MetricReader using the MeterContext of this MeterProvider and
+   * add it to the list of configured collectors.
+   * @param reader The MetricReader for which a MetricCollector is to be created. This must not be a
+   * nullptr.
+   * @param metric_filter The optional MetricFilter used when creating the MetricCollector.
    *
    * Note: This reader may not receive any in-flight meter data, but will get newly created meter
-   * data. Note: This method is not thread safe, and should ideally be called from main thread.
+   * data.
+   * Note: This method is not thread safe, and should ideally be called from main thread.
    */
-  void AddMetricReader(std::shared_ptr<MetricReader> reader) noexcept;
+  void AddMetricReader(std::shared_ptr<MetricReader> reader,
+                       std::unique_ptr<MetricFilter> metric_filter = nullptr) noexcept;
 
   /**
    * Attaches a View to list of configured Views for this Meter provider.
+   * @param instrument_selector The instrument selector for this view.
+   * @param meter_selector The meter selector for this view.
    * @param view The Views for this meter provider. This
    * must not be a nullptr.
    *
@@ -110,7 +131,7 @@ public:
   /**
    * Shutdown the meter provider.
    */
-  bool Shutdown() noexcept;
+  bool Shutdown(std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept;
 
   /**
    * Force flush the meter provider.

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <gtest/gtest.h>
+#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -15,6 +16,11 @@ public:
   explicit A(bool &destructed) noexcept : destructed_{destructed} { destructed_ = false; }
 
   ~A() { destructed_ = true; }
+
+  A(const A &)            = delete;
+  A(A &&)                 = delete;
+  A &operator=(const A &) = delete;
+  A &operator=(A &&)      = delete;
 
 private:
   bool &destructed_;
@@ -75,7 +81,7 @@ TEST(UniquePtrTest, MoveConstructionFromStdUniquePtr)
 
 TEST(UniquePtrTest, Destruction)
 {
-  bool was_destructed;
+  bool was_destructed{};
   unique_ptr<A>{new A{was_destructed}};  // NOLINT
   EXPECT_TRUE(was_destructed);
 }
@@ -121,7 +127,7 @@ TEST(UniquePtrTest, PointerOperators)
 
 TEST(UniquePtrTest, Reset)
 {
-  bool was_destructed1;
+  bool was_destructed1{};
   unique_ptr<A> ptr{new A{was_destructed1}};
   bool was_destructed2 = true;
   ptr.reset(new A{was_destructed2});

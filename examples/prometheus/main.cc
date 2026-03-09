@@ -1,19 +1,26 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+#include <cstdio>
 #include <memory>
+#include <string>
 #include <thread>
+#include <utility>
 
+#include "opentelemetry/common/attribute_value.h"
 #include "opentelemetry/exporters/prometheus/exporter_factory.h"
 #include "opentelemetry/exporters/prometheus/exporter_options.h"
-#include "opentelemetry/metrics/provider.h"
-#include "opentelemetry/sdk/metrics/aggregation/default_aggregation.h"
-#include "opentelemetry/sdk/metrics/aggregation/histogram_aggregation.h"
-#include "opentelemetry/sdk/metrics/meter.h"
+#include "opentelemetry/metrics/meter_provider.h"
+#include "opentelemetry/sdk/metrics/instruments.h"
 #include "opentelemetry/sdk/metrics/meter_provider.h"
 #include "opentelemetry/sdk/metrics/meter_provider_factory.h"
+#include "opentelemetry/sdk/metrics/metric_reader.h"
+#include "opentelemetry/sdk/metrics/provider.h"
+#include "opentelemetry/sdk/metrics/view/instrument_selector.h"
 #include "opentelemetry/sdk/metrics/view/instrument_selector_factory.h"
+#include "opentelemetry/sdk/metrics/view/meter_selector.h"
 #include "opentelemetry/sdk/metrics/view/meter_selector_factory.h"
+#include "opentelemetry/sdk/metrics/view/view.h"
 #include "opentelemetry/sdk/metrics/view/view_factory.h"
 
 #ifdef BAZEL_BUILD
@@ -59,7 +66,7 @@ void InitMetrics(const std::string &name, const std::string &addr)
 
   auto meter_selector = metrics_sdk::MeterSelectorFactory::Create(name, version, schema);
 
-  auto sum_view = metrics_sdk::ViewFactory::Create(counter_name, "description", counter_unit,
+  auto sum_view = metrics_sdk::ViewFactory::Create(counter_name, "description",
                                                    metrics_sdk::AggregationType::kSum);
 
   p->AddView(std::move(instrument_selector), std::move(meter_selector), std::move(sum_view));
@@ -73,20 +80,20 @@ void InitMetrics(const std::string &name, const std::string &addr)
 
   auto histogram_meter_selector = metrics_sdk::MeterSelectorFactory::Create(name, version, schema);
 
-  auto histogram_view = metrics_sdk::ViewFactory::Create(
-      histogram_name, "description", histogram_unit, metrics_sdk::AggregationType::kHistogram);
+  auto histogram_view = metrics_sdk::ViewFactory::Create(histogram_name, "description",
+                                                         metrics_sdk::AggregationType::kHistogram);
 
   p->AddView(std::move(histogram_instrument_selector), std::move(histogram_meter_selector),
              std::move(histogram_view));
 
   std::shared_ptr<opentelemetry::metrics::MeterProvider> provider(std::move(u_provider));
-  metrics_api::Provider::SetMeterProvider(provider);
+  metrics_sdk::Provider::SetMeterProvider(provider);
 }
 
 void CleanupMetrics()
 {
   std::shared_ptr<metrics_api::MeterProvider> none;
-  metrics_api::Provider::SetMeterProvider(none);
+  metrics_sdk::Provider::SetMeterProvider(none);
 }
 }  // namespace
 
@@ -128,4 +135,5 @@ int main(int argc, char **argv)
   }
 
   CleanupMetrics();
+  return 0;
 }

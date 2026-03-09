@@ -5,9 +5,16 @@
 
 #pragma once
 
-#include "opentelemetry/baggage/baggage.h"
-#include "opentelemetry/trace/span_context.h"
+#include <functional>
+#include <string>
+
 #include "opentracing/span.h"
+
+#include "opentelemetry/baggage/baggage.h"
+#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/trace/span_context.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace opentracingshim
@@ -24,7 +31,7 @@ public:
   {}
 
   inline const opentelemetry::trace::SpanContext &context() const { return context_; }
-  inline const BaggagePtr baggage() const { return baggage_; }
+  inline const BaggagePtr &baggage() const { return baggage_; }
   SpanContextShim newWithKeyValue(nostd::string_view key, nostd::string_view value) const noexcept;
   bool BaggageItem(nostd::string_view key, std::string &value) const noexcept;
 

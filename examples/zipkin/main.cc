@@ -8,13 +8,12 @@
 #include "opentelemetry/exporters/zipkin/zipkin_exporter_factory.h"
 #include "opentelemetry/exporters/zipkin/zipkin_exporter_options.h"
 #include "opentelemetry/sdk/resource/resource.h"
+#include "opentelemetry/sdk/trace/exporter.h"
 #include "opentelemetry/sdk/trace/processor.h"
-#include "opentelemetry/sdk/trace/recordable.h"
+#include "opentelemetry/sdk/trace/provider.h"
 #include "opentelemetry/sdk/trace/simple_processor_factory.h"
 #include "opentelemetry/sdk/trace/tracer_provider.h"
 #include "opentelemetry/sdk/trace/tracer_provider_factory.h"
-#include "opentelemetry/trace/provider.h"
-#include "opentelemetry/trace/span_id.h"
 #include "opentelemetry/trace/tracer_provider.h"
 
 #ifdef BAZEL_BUILD
@@ -41,13 +40,13 @@ void InitTracer()
   std::shared_ptr<opentelemetry::trace::TracerProvider> provider =
       trace_sdk::TracerProviderFactory::Create(std::move(processor), resource);
   // Set the global trace provider
-  trace::Provider::SetTracerProvider(provider);
+  trace_sdk::Provider::SetTracerProvider(provider);
 }
 
 void CleanupTracer()
 {
   std::shared_ptr<opentelemetry::trace::TracerProvider> none;
-  trace::Provider::SetTracerProvider(none);
+  trace_sdk::Provider::SetTracerProvider(none);
 }
 }  // namespace
 
@@ -63,4 +62,5 @@ int main(int argc, char *argv[])
   foo_library();
 
   CleanupTracer();
+  return 0;
 }
