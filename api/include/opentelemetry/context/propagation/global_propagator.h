@@ -6,8 +6,8 @@
 #include <mutex>
 
 #include "opentelemetry/context/propagation/noop_propagator.h"
-#include "opentelemetry/context/propagation/text_map_propagator.h"
 
+#include "opentelemetry/common/macros.h"
 #include "opentelemetry/common/spin_lock_mutex.h"
 #include "opentelemetry/nostd/shared_ptr.h"
 
@@ -19,9 +19,11 @@ namespace context
 namespace propagation
 {
 
+class TextMapPropagator;
+
 /* Stores the singleton TextMapPropagator */
 
-class GlobalTextMapPropagator
+class OPENTELEMETRY_EXPORT GlobalTextMapPropagator
 {
 public:
   static nostd::shared_ptr<TextMapPropagator> GetGlobalPropagator() noexcept
@@ -37,13 +39,13 @@ public:
   }
 
 private:
-  static nostd::shared_ptr<TextMapPropagator> &GetPropagator() noexcept
+  OPENTELEMETRY_API_SINGLETON static nostd::shared_ptr<TextMapPropagator> &GetPropagator() noexcept
   {
     static nostd::shared_ptr<TextMapPropagator> propagator(new NoOpPropagator());
     return propagator;
   }
 
-  static common::SpinLockMutex &GetLock() noexcept
+  OPENTELEMETRY_API_SINGLETON static common::SpinLockMutex &GetLock() noexcept
   {
     static common::SpinLockMutex lock;
     return lock;

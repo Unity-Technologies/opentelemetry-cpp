@@ -16,7 +16,7 @@
 
 #ifdef _WIN32
 
-//#  include <Windows.h>
+// #  include <Windows.h>
 
 #  include <winsock2.h>
 
@@ -33,7 +33,7 @@
 #    include <sys/epoll.h>
 #  endif
 
-#  if __APPLE__
+#  ifdef __APPLE__
 #    include "TargetConditionals.h"
 // Use kqueue on mac
 #    include <sys/event.h>
@@ -133,7 +133,7 @@ struct Thread
   virtual ~Thread() noexcept {}
 };
 
-};  // namespace common
+}  // namespace common
 namespace SocketTools
 {
 
@@ -447,6 +447,8 @@ struct Reactor : protected common::Thread
   class SocketCallback
   {
   public:
+    SocketCallback()                             = default;
+    virtual ~SocketCallback()                    = default;
     virtual void onSocketReadable(Socket sock)   = 0;
     virtual void onSocketWritable(Socket sock)   = 0;
     virtual void onSocketAcceptable(Socket sock) = 0;
@@ -502,7 +504,7 @@ public:
 #endif
   }
 
-  ~Reactor()
+  ~Reactor() override
   {
 #ifdef __linux__
     ::close(m_epollFd);

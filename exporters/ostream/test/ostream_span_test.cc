@@ -31,7 +31,7 @@ using Attributes = std::initializer_list<std::pair<nostd::string_view, common::A
 class TestResource : public resource::Resource
 {
 public:
-  TestResource(resource::ResourceAttributes attributes = resource::ResourceAttributes())
+  TestResource(const resource::ResourceAttributes &attributes = resource::ResourceAttributes())
       : resource::Resource(attributes)
   {}
 };
@@ -46,8 +46,8 @@ TEST(OStreamSpanExporter, Shutdown)
   auto recordable = processor->MakeRecordable();
   recordable->SetName("Test Span");
 
-  // Capture the output of cout
-  const auto captured = WithOStreamCapture(std::cout, [&]() {
+  // Capture the output of cerr
+  const auto captured = WithOStreamCapture(std::cerr, [&]() {
     EXPECT_TRUE(processor->Shutdown());
     processor->OnEnd(std::move(recordable));
   });

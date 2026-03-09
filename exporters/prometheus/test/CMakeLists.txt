@@ -1,9 +1,12 @@
-foreach(testname prometheus_exporter_test prometheus_collector_test
-                 prometheus_exporter_utils_test)
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+foreach(testname exporter_test collector_test exporter_utils_test)
   add_executable(${testname} "${testname}.cc")
   target_link_libraries(
     ${testname} ${GTEST_BOTH_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}
-    prometheus_exporter_deprecated prometheus-cpp::pull)
+    opentelemetry_exporter_prometheus prometheus-cpp::pull
+    opentelemetry_resources)
   gtest_add_tests(
     TARGET ${testname}
     TEST_PREFIX exporter.

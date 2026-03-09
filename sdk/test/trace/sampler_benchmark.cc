@@ -1,20 +1,34 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+#include <benchmark/benchmark.h>
+#include <algorithm>
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "opentelemetry/common/key_value_iterable_view.h"
 #include "opentelemetry/exporters/memory/in_memory_span_exporter.h"
 #include "opentelemetry/sdk/resource/resource.h"
+#include "opentelemetry/sdk/trace/exporter.h"
+#include "opentelemetry/sdk/trace/processor.h"
+#include "opentelemetry/sdk/trace/recordable.h"
 #include "opentelemetry/sdk/trace/sampler.h"
 #include "opentelemetry/sdk/trace/samplers/always_off.h"
 #include "opentelemetry/sdk/trace/samplers/always_on.h"
 #include "opentelemetry/sdk/trace/samplers/parent.h"
 #include "opentelemetry/sdk/trace/samplers/trace_id_ratio.h"
 #include "opentelemetry/sdk/trace/simple_processor.h"
-#include "opentelemetry/sdk/trace/span_data.h"
 #include "opentelemetry/sdk/trace/tracer.h"
-
-#include <cstdint>
-
-#include <benchmark/benchmark.h>
+#include "opentelemetry/sdk/trace/tracer_context.h"
+#include "opentelemetry/trace/span.h"
+#include "opentelemetry/trace/span_context.h"
+#include "opentelemetry/trace/span_context_kv_iterable_view.h"
+#include "opentelemetry/trace/span_metadata.h"
+#include "opentelemetry/trace/trace_id.h"
+#include "opentelemetry/trace/tracer.h"
 
 using namespace opentelemetry::sdk::trace;
 using opentelemetry::exporter::memory::InMemorySpanExporter;
@@ -42,6 +56,11 @@ void BM_AlwaysOnSamplerConstruction(benchmark::State &state)
 }
 BENCHMARK(BM_AlwaysOnSamplerConstruction);
 
+/*
+  Fails to build with GCC.
+  See upstream bug: https://github.com/google/benchmark/issues/1675
+*/
+#if 0
 void BM_ParentBasedSamplerConstruction(benchmark::State &state)
 {
   while (state.KeepRunning())
@@ -59,6 +78,7 @@ void BM_TraceIdRatioBasedSamplerConstruction(benchmark::State &state)
   }
 }
 BENCHMARK(BM_TraceIdRatioBasedSamplerConstruction);
+#endif
 
 // Sampler Helper Function
 void BenchmarkShouldSampler(Sampler &sampler, benchmark::State &state)
@@ -69,11 +89,13 @@ void BenchmarkShouldSampler(Sampler &sampler, benchmark::State &state)
   using M = std::map<std::string, int>;
   M m1    = {{}};
 
-  using L = std::vector<std::pair<trace_api::SpanContext, std::map<std::string, std::string>>>;
-  L l1 = {{trace_api::SpanContext(false, false), {}}, {trace_api::SpanContext(false, false), {}}};
+  using L =
+      std::vector<std::pair<opentelemetry::trace::SpanContext, std::map<std::string, std::string>>>;
+  L l1 = {{opentelemetry::trace::SpanContext(false, false), {}},
+          {opentelemetry::trace::SpanContext(false, false), {}}};
 
   opentelemetry::common::KeyValueIterableView<M> view{m1};
-  trace_api::SpanContextKeyValueIterableView<L> links{l1};
+  opentelemetry::trace::SpanContextKeyValueIterableView<L> links{l1};
 
   while (state.KeepRunning())
   {
@@ -118,15 +140,16 @@ void BM_TraceIdRatioBasedSamplerShouldSample(benchmark::State &state)
 BENCHMARK(BM_TraceIdRatioBasedSamplerShouldSample);
 
 // Sampler Helper Function
-void BenchmarkSpanCreation(std::shared_ptr<Sampler> sampler, benchmark::State &state)
+void BenchmarkSpanCreation(std::unique_ptr<Sampler> &&sampler, benchmark::State &state)
 {
   std::unique_ptr<SpanExporter> exporter(new InMemorySpanExporter());
   std::unique_ptr<SpanProcessor> processor(new SimpleSpanProcessor(std::move(exporter)));
   std::vector<std::unique_ptr<SpanProcessor>> processors;
   processors.push_back(std::move(processor));
-  auto context  = std::make_shared<TracerContext>(std::move(processors));
   auto resource = opentelemetry::sdk::resource::Resource::Create({});
-  auto tracer   = std::shared_ptr<opentelemetry::trace::Tracer>(new Tracer(context));
+  auto context =
+      std::make_shared<TracerContext>(std::move(processors), resource, std::move(sampler));
+  auto tracer = std::shared_ptr<opentelemetry::trace::Tracer>(new Tracer(context));
 
   while (state.KeepRunning())
   {
@@ -141,14 +164,16 @@ void BenchmarkSpanCreation(std::shared_ptr<Sampler> sampler, benchmark::State &s
 // Test to measure performance for span creation
 void BM_SpanCreation(benchmark::State &state)
 {
-  BenchmarkSpanCreation(std::move(std::make_shared<AlwaysOnSampler>()), state);
+  std::unique_ptr<Sampler> sampler(new AlwaysOnSampler());
+  BenchmarkSpanCreation(std::move(sampler), state);
 }
 BENCHMARK(BM_SpanCreation);
 
 // Test to measure performance overhead for no-op span creation
 void BM_NoopSpanCreation(benchmark::State &state)
 {
-  BenchmarkSpanCreation(std::move(std::make_shared<AlwaysOffSampler>()), state);
+  std::unique_ptr<Sampler> sampler(new AlwaysOffSampler());
+  BenchmarkSpanCreation(std::move(sampler), state);
 }
 BENCHMARK(BM_NoopSpanCreation);
 

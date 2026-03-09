@@ -2,36 +2,40 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
-#ifdef ENABLE_LOGS_PREVIEW
 
-#  include <algorithm>
+#include <algorithm>
 
-#  include <cstdint>
-#  include <cstdio>
-#  include <cstdlib>
-#  include <sstream>
-#  include <type_traits>
+#include <chrono>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <sstream>
+#include <type_traits>
 
-#  include <fstream>
+#include <fstream>
 
-#  include <map>
+#include <map>
+#include <unordered_map>
 
-#  include "opentelemetry/nostd/shared_ptr.h"
-#  include "opentelemetry/nostd/string_view.h"
-#  include "opentelemetry/nostd/unique_ptr.h"
-#  include "opentelemetry/nostd/variant.h"
+#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/nostd/unique_ptr.h"
+#include "opentelemetry/nostd/variant.h"
 
-#  include "opentelemetry/common/key_value_iterable_view.h"
+#include "opentelemetry/common/key_value_iterable_view.h"
 
-#  include "opentelemetry/logs/logger_provider.h"
-#  include "opentelemetry/trace/span_id.h"
-#  include "opentelemetry/trace/trace_id.h"
+#include "opentelemetry/logs/log_record.h"
+#include "opentelemetry/logs/logger.h"
+#include "opentelemetry/logs/logger_provider.h"
+#include "opentelemetry/logs/severity.h"
+#include "opentelemetry/trace/span_id.h"
+#include "opentelemetry/trace/trace_id.h"
 
-#  include "opentelemetry/exporters/etw/etw_config.h"
-#  include "opentelemetry/exporters/etw/etw_fields.h"
-#  include "opentelemetry/exporters/etw/etw_properties.h"
-#  include "opentelemetry/exporters/etw/etw_provider.h"
-#  include "opentelemetry/exporters/etw/utils.h"
+#include "opentelemetry/exporters/etw/etw_config.h"
+#include "opentelemetry/exporters/etw/etw_fields.h"
+#include "opentelemetry/exporters/etw/etw_properties.h"
+#include "opentelemetry/exporters/etw/etw_provider.h"
+#include "opentelemetry/exporters/etw/utils.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace exporter
@@ -40,6 +44,90 @@ namespace etw
 {
 
 class LoggerProvider;
+
+class LogRecord : public opentelemetry::logs::LogRecord
+{
+public:
+  ~LogRecord() override = default;
+
+  void SetTimestamp(opentelemetry::common::SystemTimestamp timestamp) noexcept override
+  {
+    timestamp_ = timestamp;
+  }
+
+  opentelemetry::common::SystemTimestamp GetTimestamp() const noexcept { return timestamp_; }
+
+  void SetObservedTimestamp(opentelemetry::common::SystemTimestamp timestamp) noexcept override
+  {
+    observed_timestamp_ = timestamp;
+  }
+
+  opentelemetry::common::SystemTimestamp GetObservedTimestamp() const noexcept
+  {
+    return observed_timestamp_;
+  }
+
+  void SetSeverity(opentelemetry::logs::Severity severity) noexcept override
+  {
+    severity_ = severity;
+  }
+
+  opentelemetry::logs::Severity GetSeverity() const noexcept { return severity_; }
+
+  void SetBody(const opentelemetry::common::AttributeValue &message) noexcept override
+  {
+    body_ = message;
+  }
+
+  const opentelemetry::common::AttributeValue &GetBody() const noexcept { return body_; }
+
+  void SetAttribute(nostd::string_view key,
+                    const opentelemetry::common::AttributeValue &value) noexcept override
+  {
+    attributes_map_[static_cast<std::string>(key)] = value;
+  }
+
+  void SetEventId(int64_t /* id */, nostd::string_view /* name */) noexcept override {}
+
+  const std::unordered_map<std::string, opentelemetry::common::AttributeValue> &GetAttributes()
+      const noexcept
+  {
+    return attributes_map_;
+  }
+
+  void SetTraceId(const opentelemetry::trace::TraceId &trace_id) noexcept override
+  {
+    trace_id_ = trace_id;
+  }
+
+  const opentelemetry::trace::TraceId &GetTraceId() const noexcept { return trace_id_; }
+
+  void SetSpanId(const opentelemetry::trace::SpanId &span_id) noexcept override
+  {
+    span_id_ = span_id;
+  }
+
+  const opentelemetry::trace::SpanId &GetSpanId() const noexcept { return span_id_; }
+
+  void SetTraceFlags(const opentelemetry::trace::TraceFlags &trace_flags) noexcept override
+  {
+    trace_flags_ = trace_flags;
+  }
+
+  const opentelemetry::trace::TraceFlags &GetTraceFlags() const noexcept { return trace_flags_; }
+
+private:
+  opentelemetry::logs::Severity severity_ = opentelemetry::logs::Severity::kInvalid;
+
+  std::unordered_map<std::string, opentelemetry::common::AttributeValue> attributes_map_;
+  opentelemetry::common::AttributeValue body_ = opentelemetry::nostd::string_view();
+  opentelemetry::common::SystemTimestamp timestamp_;
+  opentelemetry::common::SystemTimestamp observed_timestamp_ = std::chrono::system_clock::now();
+
+  opentelemetry::trace::TraceId trace_id_;
+  opentelemetry::trace::SpanId span_id_;
+  opentelemetry::trace::TraceFlags trace_flags_;
+};
 
 /**
  * @brief Logger  class that allows to send logs to ETW Provider.
@@ -56,6 +144,8 @@ class Logger : public opentelemetry::logs::Logger
    * @brief ProviderId (Name or GUID)
    */
   std::string provId;
+
+  std::string eventName_;
 
   /**
    * @brief Encoding (Manifest, MessagePack or XML)
@@ -91,59 +181,109 @@ public:
    * @param encoding ETW encoding format to use.
    */
   Logger(etw::LoggerProvider &parent,
+         nostd::string_view eventName,
          nostd::string_view providerId     = "",
          ETWProvider::EventFormat encoding = ETWProvider::EventFormat::ETW_MANIFEST)
       : opentelemetry::logs::Logger(),
         loggerProvider_(parent),
+        eventName_(eventName),
         provId(providerId.data(), providerId.size()),
         encoding(encoding),
         provHandle(initProvHandle())
   {}
 
-  void Log(opentelemetry::logs::Severity severity,
-           nostd::string_view name,
-           nostd::string_view body,
-           const common::KeyValueIterable &attributes,
-           opentelemetry::trace::TraceId trace_id,
-           opentelemetry::trace::SpanId span_id,
-           opentelemetry::trace::TraceFlags trace_flags,
-           common::SystemTimestamp timestamp) noexcept override
+  nostd::unique_ptr<opentelemetry::logs::LogRecord> CreateLogRecord() noexcept
   {
+    return nostd::unique_ptr<opentelemetry::logs::LogRecord>(new LogRecord());
+  }
 
-#  ifdef OPENTELEMETRY_RTTI_ENABLED
-    common::KeyValueIterable &attribs = const_cast<common::KeyValueIterable &>(attributes);
-    Properties *evt                   = dynamic_cast<Properties *>(&attribs);
-    // Properties *res                   = dynamic_cast<Properties *>(&resr);
+  using opentelemetry::logs::Logger::EmitLogRecord;
 
-    if (evt != nullptr)
+  void EmitLogRecord(
+      nostd::unique_ptr<opentelemetry::logs::LogRecord> &&log_record) noexcept override
+  {
+    if (!log_record)
     {
-      // Pass as a reference to original modifyable collection without creating a copy
-      return Log(severity, name, body, *evt, trace_id, span_id, trace_flags, timestamp);
+      return;
     }
-#  endif
-    Properties evtCopy = attributes;
-    return Log(severity, name, body, evtCopy, trace_id, span_id, trace_flags, timestamp);
+    LogRecord *readable_record = static_cast<LogRecord *>(log_record.get());
+
+    nostd::string_view body;
+    if (nostd::holds_alternative<const char *>(readable_record->GetBody()))
+    {
+      body = nostd::get<const char *>(readable_record->GetBody());
+    }
+    else if (nostd::holds_alternative<nostd::string_view>(readable_record->GetBody()))
+    {
+      body = nostd::get<nostd::string_view>(readable_record->GetBody());
+    }
+    // TODO: More body types?
+
+    Properties evtCopy{
+        opentelemetry::common::MakeKeyValueIterableView(readable_record->GetAttributes())};
+    return Log(readable_record->GetSeverity(), provId, body, evtCopy, readable_record->GetTraceId(),
+               readable_record->GetSpanId(), readable_record->GetTraceFlags(),
+               readable_record->GetTimestamp());
   }
 
   virtual void Log(opentelemetry::logs::Severity severity,
                    nostd::string_view name,
                    nostd::string_view body,
-                   Properties &evt,
+                   Properties &input_evt,
                    opentelemetry::trace::TraceId trace_id,
                    opentelemetry::trace::SpanId span_id,
                    opentelemetry::trace::TraceFlags trace_flags,
-                   common::SystemTimestamp timestamp) noexcept
+                   opentelemetry::common::SystemTimestamp timestamp) noexcept
   {
-    // Populate Etw.EventName attribute at envelope level
-    evt[ETW_FIELD_NAME] = ETW_VALUE_LOG;
+    UNREFERENCED_PARAMETER(trace_flags);
 
-#  ifdef HAVE_FIELD_TIME
+#if defined(ENABLE_ENV_PROPERTIES)
+
+    Properties env_properties_env = {};
+    bool has_customer_attribute   = false;
+    if (input_evt.size() > 0)
+    {
+      nlohmann::json env_properties_json = nlohmann::json::object();
+      for (auto &kv : input_evt)
+      {
+        nostd::string_view key = kv.first.data();
+
+        // don't serialize fields propagated from span data.
+        if (key == ETW_FIELD_NAME || key == ETW_FIELD_SPAN_ID || key == ETW_FIELD_TRACE_ID ||
+            key == ETW_FIELD_SPAN_PARENTID)
+        {
+          env_properties_env[key.data()] = kv.second;
+        }
+        else
+        {
+          utils::PopulateAttribute(env_properties_json, key, kv.second);
+          has_customer_attribute = true;
+        }
+      }
+      if (has_customer_attribute)
+      {
+        env_properties_env[ETW_FIELD_ENV_PROPERTIES] = env_properties_json.dump();
+      }
+    }
+
+    Properties &evt = has_customer_attribute ? env_properties_env : input_evt;
+
+#else
+
+    Properties &evt = input_evt;
+
+#endif  // defined(ENABLE_ENV_PROPERTIES)
+
+    // Populate Etw.EventName attribute at envelope level
+    evt[ETW_FIELD_NAME] = eventName_.data();
+
+#ifdef HAVE_FIELD_TIME
     {
       auto timeNow        = std::chrono::system_clock::now().time_since_epoch();
-      auto millis         = std::chrono::duration_cast<std::chrono::milliseconds>(timeNow).count();
-      evt[ETW_FIELD_TIME] = utils::formatUtcTimestampMsAsISO8601(millis);
+      auto nanos          = std::chrono::duration_cast<std::chrono::nanoseconds>(timeNow).count();
+      evt[ETW_FIELD_TIME] = utils::formatUtcTimestampNsAsISO8601(nanos);
     }
-#  endif
+#endif
     const auto &cfg = GetConfiguration(loggerProvider_);
     if (cfg.enableSpanId)
     {
@@ -163,11 +303,11 @@ public:
         ActivityIdPtr = &ActivityId;
       }
     }
-    evt[ETW_FIELD_PAYLOAD_NAME]              = std::string(name.data(), name.length());
+    evt[ETW_FIELD_PAYLOAD_NAME]              = std::string(name.data(), name.size());
     std::chrono::system_clock::time_point ts = timestamp;
-    int64_t tsMs =
-        std::chrono::duration_cast<std::chrono::milliseconds>(ts.time_since_epoch()).count();
-    evt[ETW_FIELD_TIMESTAMP] = utils::formatUtcTimestampMsAsISO8601(tsMs);
+    int64_t tsNs =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(ts.time_since_epoch()).count();
+    evt[ETW_FIELD_TIMESTAMP] = utils::formatUtcTimestampNsAsISO8601(tsNs);
     int severity_index       = static_cast<int>(severity);
     if (severity_index < 0 ||
         severity_index >= std::extent<decltype(opentelemetry::logs::SeverityNumToText)>::value)
@@ -211,6 +351,8 @@ public:
     GetOption(options, "enableTraceId", config_.enableTraceId, true);
     GetOption(options, "enableSpanId", config_.enableSpanId, true);
     GetOption(options, "enableActivityId", config_.enableActivityId, false);
+    GetOption(options, "enableTableNameMappings", config_.enableTableNameMappings, false);
+    GetOption(options, "tableNameMappings", config_.tableNameMappings, {});
 
     // Determines what encoding to use for ETW events: TraceLogging Dynamic, MsgPack, XML, etc.
     config_.encoding = GetEncoding(options);
@@ -222,52 +364,34 @@ public:
   }
 
   nostd::shared_ptr<opentelemetry::logs::Logger> GetLogger(
-      nostd::string_view logger_name,
-      nostd::string_view options,
-      nostd::string_view library_name,
-      nostd::string_view version    = "",
-      nostd::string_view schema_url = "") override
+      opentelemetry::nostd::string_view logger_name,
+      opentelemetry::nostd::string_view library_name = "",
+      opentelemetry::nostd::string_view version      = "",
+      opentelemetry::nostd::string_view schema_url   = "",
+      const opentelemetry::common::KeyValueIterable &attributes =
+          opentelemetry::common::NoopKeyValueIterable()) override
   {
-    UNREFERENCED_PARAMETER(options);
-    UNREFERENCED_PARAMETER(library_name);
     UNREFERENCED_PARAMETER(version);
     UNREFERENCED_PARAMETER(schema_url);
-    ETWProvider::EventFormat evtFmt = config_.encoding;
-    return nostd::shared_ptr<opentelemetry::logs::Logger>{
-        new (std::nothrow) etw::Logger(*this, logger_name, evtFmt)};
-  }
+    UNREFERENCED_PARAMETER(attributes);
 
-  /**
-   * @brief Obtain ETW Tracer.
-   * @param name ProviderId (instrumentation name) - Name or GUID
-   * @param args Additional arguments that controls `codec` of the provider.
-   * Possible values are:
-   * - "ETW"            - 'classic' Trace Logging Dynamic manifest ETW events.
-   * - "MSGPACK"        - MessagePack-encoded binary payload ETW events.
-   * - "XML"            - XML events (reserved for future use)
-   * @param library_name Library name
-   * @param version Library version
-   * @param schema_url schema URL
-   * @return
-   */
-  nostd::shared_ptr<opentelemetry::logs::Logger> GetLogger(
-      nostd::string_view logger_name,
-      nostd::span<nostd::string_view> args,
-      nostd::string_view library_name,
-      nostd::string_view version    = "",
-      nostd::string_view schema_url = "") override
-  {
-    UNREFERENCED_PARAMETER(args);
-    UNREFERENCED_PARAMETER(library_name);
-    UNREFERENCED_PARAMETER(version);
-    UNREFERENCED_PARAMETER(schema_url);
+    std::string event_name{ETW_VALUE_LOG};
+    if (config_.enableTableNameMappings)
+    {
+      auto it =
+          config_.tableNameMappings.find(std::string(library_name.data(), library_name.size()));
+      if (it != config_.tableNameMappings.end())
+      {
+        event_name = it->second;
+      }
+    }
+
     ETWProvider::EventFormat evtFmt = config_.encoding;
     return nostd::shared_ptr<opentelemetry::logs::Logger>{
-        new (std::nothrow) etw::Logger(*this, logger_name, evtFmt)};
+        new (std::nothrow) etw::Logger(*this, event_name, logger_name, evtFmt)};
   }
 };
 
 }  // namespace etw
 }  // namespace exporter
 OPENTELEMETRY_END_NAMESPACE
-#endif  // ENABLE_LOGS_PREVIEW

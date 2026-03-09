@@ -1,18 +1,38 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+#include <stdint.h>
+#include <stdlib.h>
+#include <algorithm>
+#include <initializer_list>
+#include <iostream>
+#include <map>
+#include <nlohmann/json.hpp>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "opentelemetry/context/context_value.h"
+#include "opentelemetry/context/propagation/text_map_propagator.h"
 #include "opentelemetry/context/runtime_context.h"
 #include "opentelemetry/exporters/ostream/span_exporter.h"
 #include "opentelemetry/ext/http/client/curl/http_client_curl.h"
+#include "opentelemetry/ext/http/client/curl/http_operation_curl.h"
+#include "opentelemetry/ext/http/client/http_client.h"
 #include "opentelemetry/ext/http/server/http_server.h"
+#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/sdk/trace/exporter.h"
+#include "opentelemetry/sdk/trace/processor.h"
+#include "opentelemetry/sdk/trace/recordable.h"
 #include "opentelemetry/sdk/trace/simple_processor.h"
+#include "opentelemetry/sdk/trace/tracer_context.h"
 #include "opentelemetry/sdk/trace/tracer_provider.h"
 #include "opentelemetry/trace/propagation/http_trace_context.h"
 #include "opentelemetry/trace/provider.h"
 #include "opentelemetry/trace/scope.h"
-
-#include <algorithm>
-#include "nlohmann/json.hpp"
+#include "opentelemetry/trace/tracer.h"
+#include "opentelemetry/trace/tracer_provider.h"
 
 namespace trace_api   = opentelemetry::trace;
 namespace http_client = opentelemetry::ext::http::client;
@@ -29,7 +49,7 @@ class TextMapCarrierTest : public context::propagation::TextMapCarrier
 {
 public:
   TextMapCarrierTest(std::map<std::string, std::string> &headers) : headers_(headers) {}
-  virtual nostd::string_view Get(nostd::string_view key) const noexcept override
+  nostd::string_view Get(nostd::string_view key) const noexcept override
   {
     auto it = headers_.find(std::string(key));
     if (it != headers_.end())
@@ -38,7 +58,7 @@ public:
     }
     return "";
   }
-  virtual void Set(nostd::string_view key, nostd::string_view value) noexcept override
+  void Set(nostd::string_view key, nostd::string_view value) noexcept override
   {
     headers_[std::string(key)] = std::string(value);
   }
@@ -54,9 +74,10 @@ void initTracer()
       new trace_sdk::SimpleSpanProcessor(std::move(exporter)));
   std::vector<std::unique_ptr<trace_sdk::SpanProcessor>> processors;
   processors.push_back(std::move(processor));
-  auto context = std::make_shared<trace_sdk::TracerContext>(std::move(processors));
-  auto provider =
-      nostd::shared_ptr<trace_api::TracerProvider>(new trace_sdk::TracerProvider(context));
+  auto context = std::unique_ptr<trace_sdk::TracerContext>(
+      new trace_sdk::TracerContext(std::move(processors)));
+  auto provider = nostd::shared_ptr<trace_api::TracerProvider>(
+      new trace_sdk::TracerProvider(std::move(context)));
   // Set the global trace provider
   trace_api::Provider::SetTracerProvider(provider);
 }
@@ -73,10 +94,10 @@ struct Uri
   uint16_t port;
   std::string path;
 
-  Uri(std::string uri)
+  Uri(const std::string &uri)
   {
-    size_t host_end = uri.substr(7, std::string::npos).find(":");
-    size_t port_end = uri.substr(host_end + 1, std::string::npos).find("/");
+    size_t host_end = uri.substr(7, std::string::npos).find(':');
+    size_t port_end = uri.substr(host_end + 1, std::string::npos).find('/');
 
     host = uri.substr(0, host_end + 7);
     port = std::stoi(uri.substr(7 + host_end + 1, port_end));
@@ -89,18 +110,18 @@ struct Uri
 class NoopEventHandler : public http_client::EventHandler
 {
 public:
-  void OnEvent(http_client::SessionState state, nostd::string_view reason) noexcept override {}
+  void OnEvent(http_client::SessionState /* state */,
+               nostd::string_view /* reason */) noexcept override
+  {}
 
-  void OnConnecting(const http_client::SSLCertificate &) noexcept override {}
-
-  void OnResponse(http_client::Response &response) noexcept override {}
+  void OnResponse(http_client::Response & /* response */) noexcept override {}
 };
 }  // namespace
 
 // Sends an HTTP POST request to the given url, with the given body.
 void send_request(curl::HttpClient &client, const std::string &url, const std::string &body)
 {
-  static std::unique_ptr<http_client::EventHandler> handler(new NoopEventHandler());
+  static std::shared_ptr<http_client::EventHandler> handler(new NoopEventHandler());
 
   auto request_span = get_tracer()->StartSpan(__func__);
   trace_api::Scope scope(request_span);
@@ -126,7 +147,7 @@ void send_request(curl::HttpClient &client, const std::string &url, const std::s
     request->AddHeader(hdr.first, hdr.second);
   }
 
-  session->SendRequest(*handler);
+  session->SendRequest(handler);
   session->FinishSession();
 }
 
@@ -165,7 +186,9 @@ int main(int argc, char *argv[])
 
         for (auto &part : body)
         {
-          const TextMapCarrierTest carrier((std::map<std::string, std::string> &)req.headers);
+          auto headers_2 = const_cast<std::map<std::string, std::string> &>(req.headers);
+
+          const TextMapCarrierTest carrier(headers_2);
           auto current_ctx = context::RuntimeContext::GetCurrent();
           auto ctx         = propagator_format.Extract(carrier, current_ctx);
           auto token       = context::RuntimeContext::Attach(ctx);

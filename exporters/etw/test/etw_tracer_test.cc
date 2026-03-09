@@ -6,13 +6,15 @@
 #  include <gtest/gtest.h>
 #  include <map>
 #  include <string>
-
+#  include "opentelemetry//sdk/trace/sampler.h"
 #  include "opentelemetry/exporters/etw/etw_tracer_exporter.h"
+#  include "opentelemetry/sdk/trace/samplers/always_off.h"
 #  include "opentelemetry/sdk/trace/simple_processor.h"
 
 using namespace OPENTELEMETRY_NAMESPACE;
 
 using namespace opentelemetry::exporter::etw;
+using namespace opentelemetry::sdk::trace;
 
 const char *kGlobalProviderName = "OpenTelemetry-ETW-TLD";
 
@@ -20,6 +22,73 @@ std::string getTemporaryValue()
 {
   return std::string("Value from Temporary std::string");
 }
+
+/**
+ * A Mock Custom Id Generator
+ */
+class MockIdGenerator : public sdk::trace::IdGenerator
+{
+public:
+  MockIdGenerator() : sdk::trace::IdGenerator(false) {}
+
+  opentelemetry::trace::SpanId GenerateSpanId() noexcept override
+  {
+    return opentelemetry::trace::SpanId(buf_span);
+  }
+
+  opentelemetry::trace::TraceId GenerateTraceId() noexcept override
+  {
+    return opentelemetry::trace::TraceId(buf_trace);
+  }
+  uint8_t buf_span[8]   = {1, 2, 3, 4, 5, 6, 7, 8};
+  uint8_t buf_trace[16] = {1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6, 5, 4, 3, 2, 1};
+};
+
+/* A Custom Sampler, implementing parent based sampler*/
+class MockSampler : public sdk::trace::Sampler
+{
+public:
+  MockSampler(std::shared_ptr<Sampler> delegate_sampler) noexcept
+      : delegate_sampler_(delegate_sampler)
+  {}
+  sdk::trace::SamplingResult ShouldSample(
+      const trace_api::SpanContext &parent_context,
+      trace_api::TraceId trace_id,
+      nostd::string_view name,
+      trace_api::SpanKind span_kind,
+      const opentelemetry::common::KeyValueIterable &attributes,
+      const trace_api::SpanContextKeyValueIterable &links) noexcept
+  {
+    if (!parent_context.IsValid())
+    {
+      // If no parent (root span) exists returns the result of the delegateSampler
+      return delegate_sampler_->ShouldSample(parent_context, trace_id, name, span_kind, attributes,
+                                             links);
+    }
+
+    // If parent exists:
+    if (parent_context.IsSampled())
+    {
+      return {Decision::RECORD_AND_SAMPLE, nullptr, parent_context.trace_state()};
+    }
+    return {Decision::DROP, nullptr, parent_context.trace_state()};
+  }
+
+  nostd::string_view GetDescription() const noexcept { return "Custom Sampler"; }
+
+private:
+  std::shared_ptr<Sampler> delegate_sampler_;
+};
+
+class AlwaysOffTailSampler : public TailSampler
+{
+public:
+  opentelemetry::sdk::trace::SamplingResult ShouldSample(
+      const opentelemetry::trace::Span &span) noexcept override
+  {
+    return {opentelemetry::sdk::trace::Decision::DROP};
+  }
+};
 
 /* clang-format off */
 TEST(ETWTracer, TracerCheck)
@@ -51,22 +120,25 @@ TEST(ETWTracer, TracerCheck)
   auto tracer = tp.GetTracer(providerName);
 
   // Span attributes
-  Properties attribs =
+  Properties outer_attribs =
   {
     {"attrib1", 1},
     {"attrib2", 2}
   };
+  // copy the outer attributes
+  Properties inner_attribs = outer_attribs;
+
   {
     auto topSpan = tracer->StartSpan("MySpanTop");
     auto topScope = tracer->WithActiveSpan(topSpan);
     {
-      auto outerSpan = tracer->StartSpan("MySpanL2", attribs);
+      auto outerSpan = tracer->StartSpan("MySpanL2", outer_attribs);
       auto outerScope = tracer->WithActiveSpan(outerSpan);
 
       // Create nested span. Note how we share the attributes here.
       // It is Okay to either reuse/share or have your own attributes.
       {
-        auto innerSpan = tracer->StartSpan("MySpanL3", attribs);
+        auto innerSpan = tracer->StartSpan("MySpanL3", inner_attribs);
         auto innerScope = tracer->WithActiveSpan(innerSpan);
 
         // Add span attribute
@@ -299,11 +371,11 @@ TEST(ETWTracer, GlobalSingletonTracer)
   "ActivityID": "6ed94703-6b0a-4e76-0000-000000000000",
   "RelatedActivityID": null,
   "Payload": {
-    "Duration": 0,
+    "Duration": 23456,
     "Kind": 1,
     "Name": "Span1",
     "SpanId": "0347d96e0a6b764e",
-    "StartTime": "2021-05-10T18:45:27.028000Z",
+    "StartTime": "2021-05-10T18:45:27.066411500Z",
     "StatusCode": 0,
     "StatusMessage": "",
     "Success": "True",
@@ -331,11 +403,11 @@ TEST(ETWTracer, GlobalSingletonTracer)
   "ActivityID": "3b7b2ecb-2e84-4903-0000-000000000000",
   "RelatedActivityID": null,
   "Payload": {
-    "Duration": 0,
+    "Duration": 03434,
     "Kind": 1,
     "Name": "Span2",
     "SpanId": "cb2e7b3b842e0349",
-    "StartTime": "2021-05-10T18:45:27.028000Z",
+    "StartTime": "2021-05-10T18:45:27.066411500Z",
     "StatusCode": 0,
     "StatusMessage": "",
     "Success": "True",
@@ -363,11 +435,11 @@ TEST(ETWTracer, GlobalSingletonTracer)
   "ActivityID": "0a970247-ba0e-4d4b-0000-000000000000",
   "RelatedActivityID": null,
   "Payload": {
-    "Duration": 1,
+    "Duration": 12323,
     "Kind": 1,
     "Name": "Span3",
     "SpanId": "4702970a0eba4b4d",
-    "StartTime": "2021-05-10T18:45:27.028000Z",
+    "StartTime": "2021-05-10T18:45:27.066411500Z",
     "StatusCode": 0,
     "StatusMessage": "",
     "Success": "True",
@@ -381,6 +453,108 @@ TEST(ETWTracer, GlobalSingletonTracer)
 
   localTracer->CloseWithMicroseconds(0);
   globalTracer.CloseWithMicroseconds(0);
+}
+
+TEST(ETWTracer, AlwayOffSampler)
+{
+  std::string providerName = kGlobalProviderName; // supply unique instrumentation name here
+  std::unique_ptr<sdk::trace::Sampler> always_off{new sdk::trace::AlwaysOffSampler()};
+  exporter::etw::TracerProvider tp
+    ({
+      {"enableTraceId", true},
+      {"enableSpanId", true},
+      {"enableActivityId", true},
+      {"enableRelatedActivityId", true},
+      {"enableAutoParent", true}
+     },
+     std::move(always_off));
+  auto tracer = tp.GetTracer(providerName);
+  auto span = tracer->StartSpan("span_off");
+  EXPECT_EQ(span->GetContext().IsValid(), true);
+  EXPECT_EQ(span->GetContext().IsSampled(), false);
+}
+
+TEST(ETWTracer, AlwayOffTailSampler)
+{
+  std::string providerName = kGlobalProviderName; // supply unique instrumentation name here
+  std::unique_ptr<sdk::trace::Sampler> always_on{new sdk::trace::AlwaysOnSampler()};
+  sdk::trace::IdGenerator *id_generator = new MockIdGenerator();
+  std::unique_ptr<TailSampler> always_off_tail{new AlwaysOffTailSampler()};
+  exporter::etw::TracerProvider tp
+    ({
+      {"enableTraceId", true},
+      {"enableSpanId", true},
+      {"enableActivityId", true},
+      {"enableRelatedActivityId", true},
+      {"enableAutoParent", true}
+     },
+     std::move(always_on),
+     std::unique_ptr<sdk::trace::IdGenerator>(id_generator),
+     std::move(always_off_tail));
+  auto tracer = tp.GetTracer(providerName);
+}
+
+TEST(ETWTracer, CustomIdGenerator)
+{
+  std::string providerName = kGlobalProviderName; // supply unique instrumentation name here
+  sdk::trace::IdGenerator *id_generator = new MockIdGenerator();
+  std::unique_ptr<sdk::trace::Sampler> always_on{new sdk::trace::AlwaysOnSampler()};
+  exporter::etw::TracerProvider tp
+    ({
+      {"enableTraceId", true},
+      {"enableSpanId", true},
+      {"enableActivityId", true},
+      {"enableRelatedActivityId", true},
+      {"enableAutoParent", true}
+     },
+     std::move(always_on),
+     std::unique_ptr<sdk::trace::IdGenerator>(id_generator));
+  auto tracer = tp.GetTracer(providerName);
+  auto span = tracer->StartSpan("span_on");
+  EXPECT_EQ(span->GetContext().trace_id(), id_generator->GenerateTraceId());
+}
+
+TEST(ETWTracer, CustomSampler)
+{
+  std::string providerName = kGlobalProviderName; // supply unique instrumentation name here
+  auto parent_off = std::unique_ptr<Sampler>(new MockSampler(std::make_shared<AlwaysOnSampler>()));
+  exporter::etw::TracerProvider tp
+    ({
+      {"enableTraceId", true},
+      {"enableSpanId", true},
+      {"enableActivityId", true},
+      {"enableRelatedActivityId", true},
+      {"enableAutoParent", true}
+     },
+     std::move(parent_off));
+  auto tracer = tp.GetTracer(providerName);
+  {
+    auto span = tracer->StartSpan("span_off");
+    EXPECT_EQ(span->GetContext().IsValid(), true);
+    EXPECT_EQ(span->GetContext().IsSampled(), true);
+    auto scope = tracer->WithActiveSpan(span);
+    auto trace_id = span->GetContext().trace_id();
+    {
+      auto child_span = tracer->StartSpan("span on");
+      EXPECT_EQ(child_span->GetContext().IsValid(), true);
+      EXPECT_EQ(child_span->GetContext().IsSampled(), true);
+      EXPECT_EQ(child_span->GetContext().trace_id(), trace_id);
+    }
+  }
+}
+
+TEST(ETWTracer, EndWithCustomTime)
+{
+  // Obtain a global tracer using C++11 magic static.
+  auto& globalTracer = GetGlobalTracer();
+  auto s1 = globalTracer.StartSpan("Span1");
+  auto traceId1 = s1->GetContext().trace_id();
+  opentelemetry::trace::EndSpanOptions end;
+  end.end_steady_time =  opentelemetry::common::SteadyTimestamp(std::chrono::nanoseconds(40));
+  s1->End(end);
+  auto end_time = static_cast<opentelemetry::exporter::etw::Span *>(s1.get())->GetEndTime();
+  EXPECT_EQ(end.end_steady_time.time_since_epoch(), end_time.time_since_epoch());
+
 }
 
 /* clang-format on */

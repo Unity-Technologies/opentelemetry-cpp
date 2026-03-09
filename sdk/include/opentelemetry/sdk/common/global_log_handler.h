@@ -3,18 +3,19 @@
 
 #pragma once
 
-#include <iostream>
-#include <sstream>
+#include <sstream>  // IWYU pragma: keep
+#include <string>
 #include <utility>
 
 #include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/sdk/common/attribute_utils.h"
 #include "opentelemetry/version.h"
 
-#define OTEL_INTERNAL_LOG_LEVEL_ERROR 0
-#define OTEL_INTERNAL_LOG_LEVEL_WARN 1
-#define OTEL_INTERNAL_LOG_LEVEL_INFO 2
-#define OTEL_INTERNAL_LOG_LEVEL_DEBUG 3
+#define OTEL_INTERNAL_LOG_LEVEL_NONE 0
+#define OTEL_INTERNAL_LOG_LEVEL_ERROR 1
+#define OTEL_INTERNAL_LOG_LEVEL_WARN 2
+#define OTEL_INTERNAL_LOG_LEVEL_INFO 3
+#define OTEL_INTERNAL_LOG_LEVEL_DEBUG 4
 #ifndef OTEL_INTERNAL_LOG_LEVEL
 // DEBUG by default, we can change log level on runtime
 #  define OTEL_INTERNAL_LOG_LEVEL OTEL_INTERNAL_LOG_LEVEL_DEBUG
@@ -30,16 +31,19 @@ namespace internal_log
 
 enum class LogLevel
 {
-  Error = 0,
-  Warning,
-  Info,
-  Debug
+  None    = OTEL_INTERNAL_LOG_LEVEL_NONE,
+  Error   = OTEL_INTERNAL_LOG_LEVEL_ERROR,
+  Warning = OTEL_INTERNAL_LOG_LEVEL_WARN,
+  Info    = OTEL_INTERNAL_LOG_LEVEL_INFO,
+  Debug   = OTEL_INTERNAL_LOG_LEVEL_DEBUG
 };
 
 inline std::string LevelToString(LogLevel level)
 {
   switch (level)
   {
+    case LogLevel::None:
+      return "None";
     case LogLevel::Error:
       return "Error";
     case LogLevel::Warning:
@@ -55,13 +59,13 @@ inline std::string LevelToString(LogLevel level)
 class LogHandler
 {
 public:
-  virtual ~LogHandler() = default;
+  virtual ~LogHandler();
 
   virtual void Handle(LogLevel level,
                       const char *file,
                       int line,
                       const char *msg,
-                      const sdk::common::AttributeMap &attributes) noexcept = 0;
+                      const opentelemetry::sdk::common::AttributeMap &attributes) noexcept = 0;
 };
 
 class DefaultLogHandler : public LogHandler
@@ -71,22 +75,7 @@ public:
               const char *file,
               int line,
               const char *msg,
-              const sdk::common::AttributeMap &attributes) noexcept override
-  {
-    std::stringstream output_s;
-    output_s << "[" << LevelToString(level) << "] ";
-    if (file != nullptr)
-    {
-      output_s << "File: " << file << ":" << line;
-    }
-    if (msg != nullptr)
-    {
-      output_s << msg;
-    }
-    output_s << std::endl;
-    // TBD - print attributes
-    std::cout << output_s.str();  // thread safe.
-  }
+              const opentelemetry::sdk::common::AttributeMap &attributes) noexcept override;
 };
 
 class NoopLogHandler : public LogHandler
@@ -96,10 +85,7 @@ public:
               const char *file,
               int line,
               const char *msg,
-              const sdk::common::AttributeMap &error_attributes) noexcept override
-  {
-    // ignore the log message
-  }
+              const opentelemetry::sdk::common::AttributeMap &error_attributes) noexcept override;
 };
 
 /**
@@ -113,7 +99,7 @@ public:
    *
    * By default, a default LogHandler is returned.
    */
-  static const nostd::shared_ptr<LogHandler> &GetLogHandler() noexcept
+  static inline const nostd::shared_ptr<LogHandler> &GetLogHandler() noexcept
   {
     return GetHandlerAndLevel().first;
   }
@@ -123,7 +109,7 @@ public:
    * This should be called once at the start of application before creating any Provider
    * instance.
    */
-  static void SetLogHandler(nostd::shared_ptr<LogHandler> eh) noexcept
+  static inline void SetLogHandler(nostd::shared_ptr<LogHandler> eh) noexcept
   {
     GetHandlerAndLevel().first = eh;
   }
@@ -133,22 +119,17 @@ public:
    *
    * By default, a default log level is returned.
    */
-  static LogLevel GetLogLevel() noexcept { return GetHandlerAndLevel().second; }
+  static inline LogLevel GetLogLevel() noexcept { return GetHandlerAndLevel().second; }
 
   /**
    * Changes the singleton Log level.
    * This should be called once at the start of application before creating any Provider
    * instance.
    */
-  static void SetLogLevel(LogLevel level) noexcept { GetHandlerAndLevel().second = level; }
+  static inline void SetLogLevel(LogLevel level) noexcept { GetHandlerAndLevel().second = level; }
 
 private:
-  static std::pair<nostd::shared_ptr<LogHandler>, LogLevel> &GetHandlerAndLevel() noexcept
-  {
-    static std::pair<nostd::shared_ptr<LogHandler>, LogLevel> handler_and_level{
-        nostd::shared_ptr<LogHandler>(new DefaultLogHandler), LogLevel::Warning};
-    return handler_and_level;
-  }
+  static std::pair<nostd::shared_ptr<LogHandler>, LogLevel> &GetHandlerAndLevel() noexcept;
 };
 
 }  // namespace internal_log
@@ -157,11 +138,10 @@ private:
 OPENTELEMETRY_END_NAMESPACE
 
 /**
- * We can not decide the destroying order of signaltons.
- * Which means, the destructors of other singletons (GlobalLogHandler,TracerProvider and etc.)
- * may be called after destroying of global LogHandler and use OTEL_INTERNAL_LOG_* in it.We can do
- * nothing but ignore the log in this situation.
- */
+ * GlobalLogHandler and TracerProvider/MeterProvider/LoggerProvider are lazy singletons.
+ * To ensure that GlobalLogHandler is the first one to be initialized (and so last to be
+ * destroyed), it is first used inside the constructors of TraceProvider, MeterProvider
+ * and LoggerProvider for debug logging. */
 #define OTEL_INTERNAL_LOG_DISPATCH(level, message, attributes)                            \
   do                                                                                      \
   {                                                                                       \
@@ -211,7 +191,7 @@ OPENTELEMETRY_END_NAMESPACE
                                   OTEL_INTERNAL_LOG_WARN_1_ARGS)
 #  define OTEL_INTERNAL_LOG_WARN(...) OTEL_INTERNAL_LOG_WARN_MACRO(__VA_ARGS__)(__VA_ARGS__)
 #else
-#  define OTEL_INTERNAL_LOG_ERROR(...)
+#  define OTEL_INTERNAL_LOG_WARN(...)
 #endif
 
 #if OTEL_INTERNAL_LOG_LEVEL >= OTEL_INTERNAL_LOG_LEVEL_DEBUG
@@ -236,9 +216,9 @@ OPENTELEMETRY_END_NAMESPACE
 #  define OTEL_INTERNAL_LOG_INFO_2_ARGS(message, attributes)                                      \
     OTEL_INTERNAL_LOG_DISPATCH(opentelemetry::sdk::common::internal_log::LogLevel::Info, message, \
                                attributes)
-#  define OTEL_INTERNAL_LOG_INFO_MACRO(...)                                    \
-    OTEL_INTERNAL_LOG_GET_3RD_ARG(__VA_ARGS__, OTEL_INTERNAL_LOG_ERROR_2_ARGS, \
-                                  OTEL_INTERNAL_LOG_ERROR_1_ARGS)
+#  define OTEL_INTERNAL_LOG_INFO_MACRO(...)                                   \
+    OTEL_INTERNAL_LOG_GET_3RD_ARG(__VA_ARGS__, OTEL_INTERNAL_LOG_INFO_2_ARGS, \
+                                  OTEL_INTERNAL_LOG_INFO_1_ARGS)
 #  define OTEL_INTERNAL_LOG_INFO(...) OTEL_INTERNAL_LOG_INFO_MACRO(__VA_ARGS__)(__VA_ARGS__)
 #else
 #  define OTEL_INTERNAL_LOG_INFO(...)

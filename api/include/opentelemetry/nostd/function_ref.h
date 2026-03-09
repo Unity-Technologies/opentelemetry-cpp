@@ -3,8 +3,10 @@
 
 #pragma once
 
-#include <memory>
+#include <iosfwd>
+#include <memory>  // IWYU pragma: keep
 #include <type_traits>
+#include <utility>
 
 #include "opentelemetry/version.h"
 
@@ -12,7 +14,7 @@ OPENTELEMETRY_BEGIN_NAMESPACE
 namespace nostd
 {
 template <class Sig>
-class function_ref;
+class function_ref;  // IWYU pragma: keep
 
 /**
  * Non-owning function reference that can be used as a more performant
@@ -35,8 +37,8 @@ class function_ref<R(Args...)>
   void BindTo(F &f) noexcept
   {
     callable_ = static_cast<void *>(std::addressof(f));
-    invoker_  = [](void *callable_, Args... args) -> R {
-      return (*static_cast<FunctionPointer<F>>(callable_))(std::forward<Args>(args)...);
+    invoker_  = [](void *callable, Args... args) -> R {
+      return (*static_cast<FunctionPointer<F>>(callable))(std::forward<Args>(args)...);
     };
   }
 
@@ -49,8 +51,8 @@ class function_ref<R(Args...)>
       return BindTo(nullptr);
     }
     callable_ = reinterpret_cast<void *>(f);
-    invoker_  = [](void *callable_, Args... args) -> R {
-      return (F(callable_))(std::forward<Args>(args)...);
+    invoker_  = [](void *callable, Args... args) -> R {
+      return (F(callable))(std::forward<Args>(args)...);
     };
   }
 

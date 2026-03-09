@@ -3,10 +3,9 @@
 
 #pragma once
 
+#include <stddef.h>
 #include <cassert>
-#include <iterator>
 #include <type_traits>
-#include <utility>
 
 #include "opentelemetry/nostd/span.h"
 #include "opentelemetry/version.h"

@@ -2,29 +2,32 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
-#ifdef ENABLE_LOGS_PREVIEW
 
-#  include <chrono>
-#  include <memory>
-#  include "opentelemetry/sdk/logs/recordable.h"
+#include <chrono>
+#include <memory>
+
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
 {
 namespace logs
 {
+class Recordable;
+
 /**
  * The Log Processor is responsible for passing log records
  * to the configured exporter.
  */
-class LogProcessor
+class LogRecordProcessor
 {
 public:
-  virtual ~LogProcessor() = default;
+  virtual ~LogRecordProcessor() = default;
 
   /**
    * Create a log recordable. This requests a new log recordable from the
    * associated exporter.
+   *
    * @return a newly initialized recordable
    *
    * Note: This method must be callable from multiple threads.
@@ -32,10 +35,10 @@ public:
   virtual std::unique_ptr<Recordable> MakeRecordable() noexcept = 0;
 
   /**
-   * OnReceive is called by the SDK once a log record has been successfully created.
-   * @param record the log record
+   * OnEmit is called by the SDK once a log record has been successfully created.
+   * @param record the log recordable object
    */
-  virtual void OnReceive(std::unique_ptr<Recordable> &&record) noexcept = 0;
+  virtual void OnEmit(std::unique_ptr<Recordable> &&record) noexcept = 0;
 
   /**
    * Exports all log records that have not yet been exported to the configured Exporter.
@@ -43,7 +46,7 @@ public:
    * @return a result code indicating whether it succeeded, failed or timed out
    */
   virtual bool ForceFlush(
-      std::chrono::microseconds timeout = std::chrono::microseconds::max()) noexcept = 0;
+      std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept = 0;
 
   /**
    * Shuts down the processor and does any cleanup required.
@@ -53,9 +56,8 @@ public:
    * @return true if the shutdown succeeded, false otherwise
    */
   virtual bool Shutdown(
-      std::chrono::microseconds timeout = std::chrono::microseconds::max()) noexcept = 0;
+      std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept = 0;
 };
 }  // namespace logs
 }  // namespace sdk
 OPENTELEMETRY_END_NAMESPACE
-#endif

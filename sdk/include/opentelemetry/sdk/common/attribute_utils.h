@@ -3,12 +3,20 @@
 
 #pragma once
 
+#include <cstdint>
+#include <initializer_list>
 #include <map>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
+
 #include "opentelemetry/common/attribute_value.h"
-#include "opentelemetry/common/key_value_iterable_view.h"
+#include "opentelemetry/common/key_value_iterable.h"
+#include "opentelemetry/nostd/span.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/nostd/variant.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace sdk
@@ -103,10 +111,10 @@ struct AttributeConverter
 class AttributeMap : public std::unordered_map<std::string, OwnedAttributeValue>
 {
 public:
-  // Contruct empty attribute map
-  AttributeMap() : std::unordered_map<std::string, OwnedAttributeValue>(){};
+  // Construct empty attribute map
+  AttributeMap() : std::unordered_map<std::string, OwnedAttributeValue>() {}
 
-  // Contruct attribute map and populate with attributes
+  // Construct attribute map and populate with attributes
   AttributeMap(const opentelemetry::common::KeyValueIterable &attributes) : AttributeMap()
   {
     attributes.ForEachKeyValue(
@@ -114,6 +122,19 @@ public:
           SetAttribute(key, value);
           return true;
         });
+  }
+
+  // Construct attribute map and populate with optional attributes
+  AttributeMap(const opentelemetry::common::KeyValueIterable *attributes) : AttributeMap()
+  {
+    if (attributes != nullptr)
+    {
+      attributes->ForEachKeyValue(
+          [&](nostd::string_view key, opentelemetry::common::AttributeValue value) noexcept {
+            SetAttribute(key, value);
+            return true;
+          });
+    }
   }
 
   // Construct map from initializer list by applying `SetAttribute` transform for every attribute
@@ -152,7 +173,7 @@ class OrderedAttributeMap : public std::map<std::string, OwnedAttributeValue>
 {
 public:
   // Contruct empty attribute map
-  OrderedAttributeMap() : std::map<std::string, OwnedAttributeValue>(){};
+  OrderedAttributeMap() : std::map<std::string, OwnedAttributeValue>() {}
 
   // Contruct attribute map and populate with attributes
   OrderedAttributeMap(const opentelemetry::common::KeyValueIterable &attributes)

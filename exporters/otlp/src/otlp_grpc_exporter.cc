@@ -1,97 +1,43 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-#include "opentelemetry/exporters/otlp/otlp_grpc_exporter.h"
+#include <memory>
 #include <mutex>
+
+#include "opentelemetry/common/macros.h"
+#include "opentelemetry/exporters/otlp/otlp_grpc_exporter.h"
+
+#include "opentelemetry/exporters/otlp/otlp_grpc_client.h"
 #include "opentelemetry/exporters/otlp/otlp_recordable.h"
 #include "opentelemetry/exporters/otlp/otlp_recordable_utils.h"
-#include "opentelemetry/ext/http/common/url_parser.h"
 #include "opentelemetry/sdk_config.h"
 
-#include <grpcpp/grpcpp.h>
-#include <fstream>
-#include <sstream>  // std::stringstream
+#include "opentelemetry/exporters/otlp/otlp_grpc_utils.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace exporter
 {
 namespace otlp
 {
-
-// ----------------------------- Helper functions ------------------------------
-static std::string get_file_contents(const char *fpath)
-{
-  std::ifstream finstream(fpath);
-  std::string contents;
-  contents.assign((std::istreambuf_iterator<char>(finstream)), std::istreambuf_iterator<char>());
-  finstream.close();
-  return contents;
-}
-
-/**
- * Create gRPC channel from the exporter options.
- */
-std::shared_ptr<grpc::Channel> MakeGrpcChannel(const OtlpGrpcExporterOptions &options)
-{
-  std::shared_ptr<grpc::Channel> channel;
-
-  //
-  // Scheme is allowed in OTLP endpoint definition, but is not allowed for creating gRPC channel.
-  // Passing URI with scheme to grpc::CreateChannel could resolve the endpoint to some unexpected
-  // address.
-  //
-
-  ext::http::common::UrlParser url(options.endpoint);
-  if (!url.success_)
-  {
-    OTEL_INTERNAL_LOG_ERROR("[OTLP Exporter] invalid endpoint: " << options.endpoint);
-
-    return nullptr;
-  }
-
-  std::string grpc_target = url.host_ + ":" + std::to_string(static_cast<int>(url.port_));
-
-  if (options.use_ssl_credentials)
-  {
-    grpc::SslCredentialsOptions ssl_opts;
-    if (options.ssl_credentials_cacert_path.empty())
-    {
-      ssl_opts.pem_root_certs = options.ssl_credentials_cacert_as_string;
-    }
-    else
-    {
-      ssl_opts.pem_root_certs = get_file_contents((options.ssl_credentials_cacert_path).c_str());
-    }
-    channel = grpc::CreateChannel(grpc_target, grpc::SslCredentials(ssl_opts));
-  }
-  else
-  {
-    channel = grpc::CreateChannel(grpc_target, grpc::InsecureChannelCredentials());
-  }
-
-  return channel;
-}
-
-/**
- * Create service stub to communicate with the OpenTelemetry Collector.
- */
-std::unique_ptr<proto::collector::trace::v1::TraceService::Stub> MakeTraceServiceStub(
-    const OtlpGrpcExporterOptions &options)
-{
-  return proto::collector::trace::v1::TraceService::NewStub(MakeGrpcChannel(options));
-}
-
 // -------------------------------- Constructors --------------------------------
 
 OtlpGrpcExporter::OtlpGrpcExporter() : OtlpGrpcExporter(OtlpGrpcExporterOptions()) {}
 
 OtlpGrpcExporter::OtlpGrpcExporter(const OtlpGrpcExporterOptions &options)
-    : options_(options), trace_service_stub_(MakeTraceServiceStub(options))
+    : options_(options),
+#ifdef ENABLE_ASYNC_EXPORT
+      client_(std::make_shared<OtlpGrpcClient>()),
+#endif
+      trace_service_stub_(OtlpGrpcClient::MakeTraceServiceStub(options))
 {}
 
 OtlpGrpcExporter::OtlpGrpcExporter(
     std::unique_ptr<proto::collector::trace::v1::TraceService::StubInterface> stub)
-    : options_(OtlpGrpcExporterOptions()), trace_service_stub_(std::move(stub))
+    : options_(OtlpGrpcExporterOptions()),
+#ifdef ENABLE_ASYNC_EXPORT
+      client_(std::make_shared<OtlpGrpcClient>()),
+#endif
+      trace_service_stub_(std::move(stub))
 {}
 
 // ----------------------------- Exporter methods ------------------------------
@@ -115,44 +61,90 @@ sdk::common::ExportResult OtlpGrpcExporter::Export(
     return sdk::common::ExportResult::kSuccess;
   }
 
-  proto::collector::trace::v1::ExportTraceServiceRequest request;
-  OtlpRecordableUtils::PopulateRequest(spans, &request);
+  google::protobuf::ArenaOptions arena_options;
+  // It's easy to allocate datas larger than 1024 when we populate basic resource and attributes
+  arena_options.initial_block_size = 1024;
+  // When in batch mode, it's easy to export a large number of spans at once, we can alloc a lager
+  // block to reduce memory fragments.
+  arena_options.max_block_size = 65536;
+  std::unique_ptr<google::protobuf::Arena> arena{new google::protobuf::Arena{arena_options}};
 
-  grpc::ClientContext context;
-  proto::collector::trace::v1::ExportTraceServiceResponse response;
+  proto::collector::trace::v1::ExportTraceServiceRequest *request =
+      google::protobuf::Arena::Create<proto::collector::trace::v1::ExportTraceServiceRequest>(
+          arena.get());
+  OtlpRecordableUtils::PopulateRequest(spans, request);
 
-  if (options_.timeout.count() > 0)
+  auto context = OtlpGrpcClient::MakeClientContext(options_);
+  proto::collector::trace::v1::ExportTraceServiceResponse *response =
+      google::protobuf::Arena::Create<proto::collector::trace::v1::ExportTraceServiceResponse>(
+          arena.get());
+
+#ifdef ENABLE_ASYNC_EXPORT
+  if (options_.max_concurrent_requests > 1)
   {
-    context.set_deadline(std::chrono::system_clock::now() + options_.timeout);
+    return client_->DelegateAsyncExport(
+        options_, trace_service_stub_.get(), std::move(context), std::move(arena),
+        std::move(*request),
+        [](opentelemetry::sdk::common::ExportResult result,
+           std::unique_ptr<google::protobuf::Arena> &&,
+           const proto::collector::trace::v1::ExportTraceServiceRequest &request,
+           proto::collector::trace::v1::ExportTraceServiceResponse *) {
+          if (result != opentelemetry::sdk::common::ExportResult::kSuccess)
+          {
+            OTEL_INTERNAL_LOG_ERROR("[OTLP TRACE GRPC Exporter] ERROR: Export "
+                                    << request.resource_spans_size()
+                                    << " trace span(s) error: " << static_cast<int>(result));
+          }
+          else
+          {
+            OTEL_INTERNAL_LOG_DEBUG("[OTLP TRACE GRPC Exporter] Export "
+                                    << request.resource_spans_size() << " trace span(s) success");
+          }
+          return true;
+        });
   }
-
-  for (auto &header : options_.metadata)
+  else
   {
-    context.AddMetadata(header.first, header.second);
+#endif
+    grpc::Status status =
+        OtlpGrpcClient::DelegateExport(trace_service_stub_.get(), std::move(context),
+                                       std::move(arena), std::move(*request), response);
+    if (!status.ok())
+    {
+      OTEL_INTERNAL_LOG_ERROR("[OTLP TRACE GRPC Exporter] Export() failed with status_code: \""
+                              << grpc_utils::grpc_status_code_to_string(status.error_code())
+                              << "\" error_message: \"" << status.error_message() << "\"");
+      return sdk::common::ExportResult::kFailure;
+    }
+#ifdef ENABLE_ASYNC_EXPORT
   }
-
-  grpc::Status status = trace_service_stub_->Export(&context, request, &response);
-
-  if (!status.ok())
-  {
-
-    OTEL_INTERNAL_LOG_ERROR(
-        "[OTLP TRACE GRPC Exporter] Export() failed: " << status.error_message());
-    return sdk::common::ExportResult::kFailure;
-  }
+#endif
   return sdk::common::ExportResult::kSuccess;
 }
 
-bool OtlpGrpcExporter::Shutdown(std::chrono::microseconds timeout) noexcept
+bool OtlpGrpcExporter::ForceFlush(
+    OPENTELEMETRY_MAYBE_UNUSED std::chrono::microseconds timeout) noexcept
 {
-  const std::lock_guard<opentelemetry::common::SpinLockMutex> locked(lock_);
-  is_shutdown_ = true;
+#ifdef ENABLE_ASYNC_EXPORT
+  return client_->ForceFlush(timeout);
+#else
   return true;
+#endif
+}
+
+bool OtlpGrpcExporter::Shutdown(
+    OPENTELEMETRY_MAYBE_UNUSED std::chrono::microseconds timeout) noexcept
+{
+  is_shutdown_ = true;
+#ifdef ENABLE_ASYNC_EXPORT
+  return client_->Shutdown(timeout);
+#else
+  return true;
+#endif
 }
 
 bool OtlpGrpcExporter::isShutdown() const noexcept
 {
-  const std::lock_guard<opentelemetry::common::SpinLockMutex> locked(lock_);
   return is_shutdown_;
 }
 

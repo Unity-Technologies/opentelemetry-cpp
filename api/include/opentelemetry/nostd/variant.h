@@ -5,9 +5,14 @@
 
 #include "opentelemetry/version.h"
 
-#ifdef HAVE_CPP_STDLIB
-#  include "opentelemetry/std/variant.h"
-#else
+#if defined(OPENTELEMETRY_STL_VERSION)
+#  if OPENTELEMETRY_STL_VERSION >= 2017
+#    include "opentelemetry/std/variant.h"
+#    define OPENTELEMETRY_HAVE_STD_VARIANT
+#  endif
+#endif
+
+#if !defined(OPENTELEMETRY_HAVE_STD_VARIANT)
 
 #  ifndef HAVE_ABSEIL
 // We use a LOCAL snapshot of Abseil that is known to compile with Visual Studio 2015.
@@ -49,7 +54,7 @@ OPENTELEMETRY_END_NAMESPACE
 #  ifdef HAVE_ABSEIL
 #    include "absl/types/variant.h"
 #  else
-#    include "./internal/absl/types/variant.h"
+#    include "opentelemetry/nostd/internal/absl/types/variant.h"
 #  endif
 
 #  ifdef _MSC_VER
@@ -73,4 +78,4 @@ using absl::visit;
 }  // namespace nostd
 OPENTELEMETRY_END_NAMESPACE
 
-#endif
+#endif /* OPENTELEMETRY_HAVE_STD_VARIANT */

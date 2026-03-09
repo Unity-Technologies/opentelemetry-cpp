@@ -1,23 +1,21 @@
-// Copyright 2020, Open Telemetry Authors
+// Copyright The OpenTelemetry Authors
 // Copyright 2017, OpenCensus Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-#include "opentelemetry/sdk/trace/samplers/trace_id_ratio.h"
+// SPDX-License-Identifier: Apache-2.0
 
 #include <cmath>
 #include <cstdint>
-#include <stdexcept>
+#include <cstring>
+#include <map>
+#include <memory>
+#include <string>
+
+#include "opentelemetry/common/attribute_value.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/sdk/trace/sampler.h"
+#include "opentelemetry/sdk/trace/samplers/trace_id_ratio.h"
+#include "opentelemetry/trace/span_metadata.h"
+#include "opentelemetry/trace/trace_id.h"
+#include "opentelemetry/version.h"
 
 namespace trace_api = opentelemetry::trace;
 
@@ -62,7 +60,7 @@ uint64_t CalculateThresholdFromBuffer(const trace_api::TraceId &trace_id) noexce
   uint64_t res = 0;
   std::memcpy(&res, &trace_id, 8);
 
-  double ratio = (double)res / UINT64_MAX;
+  double ratio = static_cast<double>(res) / static_cast<double>(UINT64_MAX);
 
   return CalculateThreshold(ratio);
 }
@@ -92,14 +90,14 @@ SamplingResult TraceIdRatioBasedSampler::ShouldSample(
     const trace_api::SpanContextKeyValueIterable & /*links*/) noexcept
 {
   if (threshold_ == 0)
-    return {Decision::DROP, nullptr};
+    return {Decision::DROP, nullptr, {}};
 
   if (CalculateThresholdFromBuffer(trace_id) <= threshold_)
   {
-    return {Decision::RECORD_AND_SAMPLE, nullptr};
+    return {Decision::RECORD_AND_SAMPLE, nullptr, {}};
   }
 
-  return {Decision::DROP, nullptr};
+  return {Decision::DROP, nullptr, {}};
 }
 
 nostd::string_view TraceIdRatioBasedSampler::GetDescription() const noexcept

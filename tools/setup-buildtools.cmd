@@ -1,3 +1,6 @@
+REM Copyright The OpenTelemetry Authors
+REM SPDX-License-Identifier: Apache-2.0
+
 @echo off
 setlocal enableextensions
 setlocal enabledelayedexpansion
@@ -6,6 +9,7 @@ if defined VCPKG_ROOT (
   set "PATH=%VCPKG_ROOT%;%PATH%"
 ) else (
   set "PATH=%~dp0vcpkg;%PATH%"
+  set "VCPKG_ROOT=%~dp0vcpkg"
 )
 pushd %~dp0
 
@@ -50,9 +54,6 @@ where /Q vcpkg.exe
 if %ERRORLEVEL% == 1 (
   REM Build our own vcpkg from source
   REM Prefer building in VCPKG_ROOT
-  if not defined VCPKG_ROOT (
-    set "VCPKG_ROOT=%~dp0\vcpkg"
-  )
   pushd "!VCPKG_ROOT!"
   call bootstrap-vcpkg.bat
   popd
@@ -61,15 +62,15 @@ if %ERRORLEVEL% == 1 (
 )
 
 REM Install dependencies
-vcpkg install gtest:%ARCH%-windows
-vcpkg install --overlay-ports=%~dp0ports benchmark:%ARCH%-windows
-vcpkg install --overlay-ports=%~dp0ports protobuf:%ARCH%-windows
-vcpkg install ms-gsl:%ARCH%-windows
-vcpkg install nlohmann-json:%ARCH%-windows
-vcpkg install abseil:%ARCH%-windows
-vcpkg install gRPC:%ARCH%-windows
-vcpkg install prometheus-cpp:%ARCH%-windows
-vcpkg install curl:%ARCH%-windows
-vcpkg install thrift:%ARCH%-windows
+vcpkg "--vcpkg-root=%VCPKG_ROOT%" install gtest:%ARCH%-windows
+vcpkg "--vcpkg-root=%VCPKG_ROOT%" install --overlay-ports=%~dp0ports benchmark:%ARCH%-windows
+vcpkg "--vcpkg-root=%VCPKG_ROOT%" install --overlay-ports=%~dp0ports protobuf:%ARCH%-windows
+vcpkg "--vcpkg-root=%VCPKG_ROOT%" install ms-gsl:%ARCH%-windows
+vcpkg "--vcpkg-root=%VCPKG_ROOT%" install nlohmann-json:%ARCH%-windows
+vcpkg "--vcpkg-root=%VCPKG_ROOT%" install abseil:%ARCH%-windows
+vcpkg "--vcpkg-root=%VCPKG_ROOT%" install gRPC:%ARCH%-windows
+vcpkg "--vcpkg-root=%VCPKG_ROOT%" install prometheus-cpp:%ARCH%-windows
+vcpkg "--vcpkg-root=%VCPKG_ROOT%" install curl:%ARCH%-windows
+vcpkg "--vcpkg-root=%VCPKG_ROOT%" install thrift:%ARCH%-windows
 popd
 exit /b 0

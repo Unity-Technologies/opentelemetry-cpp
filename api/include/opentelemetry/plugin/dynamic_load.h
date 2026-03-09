@@ -3,19 +3,22 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 
-#ifdef _WIN32
-#  include "opentelemetry/plugin/detail/dynamic_load_windows.h"
-#else
-#  include "opentelemetry/plugin/detail/dynamic_load_unix.h"
-#endif
-
+#include "opentelemetry/plugin/factory.h"
 #include "opentelemetry/version.h"
+
+#ifdef _WIN32
+#  include "opentelemetry/plugin/detail/dynamic_load_windows.h"  // IWYU pragma: export
+#else
+#  include "opentelemetry/plugin/detail/dynamic_load_unix.h"  // IWYU pragma: export
+#endif
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace plugin
 {
+
 /**
  * Load an OpenTelemetry implementation as a plugin.
  * @param plugin the path to the plugin to load

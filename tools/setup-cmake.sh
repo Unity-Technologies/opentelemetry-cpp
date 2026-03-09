@@ -1,7 +1,13 @@
 #!/bin/bash
+
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
 #
 # This script installs latest CMake on Linux machine
 #
+set -e
+
 export PATH=/usr/local/bin:$PATH
 # Min required CMake version
 export CMAKE_MIN_VERSION=${1:-3.1.0}

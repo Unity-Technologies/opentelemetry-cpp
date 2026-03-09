@@ -3,16 +3,16 @@
 
 #pragma once
 
-// We need include exporter.h first, which will include Windows.h with NOMINMAX on Windows
-#include "opentelemetry/sdk/trace/exporter.h"
-
-#include "opentelemetry/exporters/otlp/otlp_http_client.h"
-
-#include "opentelemetry/exporters/otlp/otlp_environment.h"
-
 #include <chrono>
 #include <memory>
-#include <string>
+
+#include "opentelemetry/exporters/otlp/otlp_http_client.h"
+#include "opentelemetry/exporters/otlp/otlp_http_exporter_options.h"
+#include "opentelemetry/nostd/span.h"
+#include "opentelemetry/sdk/common/exporter_utils.h"
+#include "opentelemetry/sdk/trace/exporter.h"
+#include "opentelemetry/sdk/trace/recordable.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace exporter
@@ -21,41 +21,9 @@ namespace otlp
 {
 
 /**
- * Struct to hold OTLP exporter options.
- */
-struct OtlpHttpExporterOptions
-{
-  // The endpoint to export to. By default
-  // @see
-  // https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md
-  // @see https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver/otlpreceiver
-  std::string url = GetOtlpDefaultHttpEndpoint();
-
-  // By default, post json data
-  HttpRequestContentType content_type = HttpRequestContentType::kJson;
-
-  // If convert bytes into hex. By default, we will convert all bytes but id into base64
-  // This option is ignored if content_type is not kJson
-  JsonBytesMappingKind json_bytes_mapping = JsonBytesMappingKind::kHexId;
-
-  // If using the json name of protobuf field to set the key of json. By default, we will use the
-  // field name just like proto files.
-  bool use_json_name = false;
-
-  // Whether to print the status of the exporter in the console
-  bool console_debug = false;
-
-  // TODO: Enable/disable to verify SSL certificate
-  std::chrono::system_clock::duration timeout = GetOtlpDefaultTimeout();
-
-  // Additional HTTP headers
-  OtlpHeaders http_headers = GetOtlpDefaultHeaders();
-};
-
-/**
  * The OTLP exporter exports span data in OpenTelemetry Protocol (OTLP) format.
  */
-class OtlpHttpExporter final : public opentelemetry::sdk::trace::SpanExporter
+class OPENTELEMETRY_EXPORT OtlpHttpExporter final : public opentelemetry::sdk::trace::SpanExporter
 {
 public:
   /**
@@ -83,12 +51,21 @@ public:
       override;
 
   /**
+   * Force flush the exporter.
+   * @param timeout an option timeout, default to max.
+   * @return return true when all data are exported, and false when timeout
+   */
+  bool ForceFlush(
+      std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept override;
+
+  /**
    * Shut down the exporter.
    * @param timeout an optional timeout, the default timeout of 0 means that no
    * timeout is applied.
    * @return return the status of this operation
    */
-  bool Shutdown(std::chrono::microseconds timeout = std::chrono::microseconds(0)) noexcept override;
+  bool Shutdown(
+      std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept override;
 
 private:
   // The configuration options associated with this exporter.

@@ -3,18 +3,17 @@
 
 #pragma once
 
+#include <chrono>
+
 #include "opentelemetry/context/context.h"
 #include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/nostd/string_view.h"
-#include "opentelemetry/nostd/unique_ptr.h"
 #include "opentelemetry/trace/default_span.h"
 #include "opentelemetry/trace/scope.h"
 #include "opentelemetry/trace/span.h"
 #include "opentelemetry/trace/span_context_kv_iterable_view.h"
 #include "opentelemetry/trace/span_startoptions.h"
 #include "opentelemetry/version.h"
-
-#include <chrono>
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace trace
@@ -67,7 +66,7 @@ public:
   template <class T,
             class U,
             nostd::enable_if_t<common::detail::is_key_value_iterable<T>::value> * = nullptr,
-            nostd::enable_if_t<detail::is_span_context_kv_iterable<U>::value> *   = nullptr>
+            nostd::enable_if_t<detail::is_span_context_kv_iterable<U>::value>   * = nullptr>
   nostd::shared_ptr<Span> StartSpan(nostd::string_view name,
                                     const T &attributes,
                                     const U &links,
@@ -164,6 +163,13 @@ public:
     }
   }
 
+#if OPENTELEMETRY_ABI_VERSION_NO == 1
+
+  /*
+   * The following is removed from the API in ABI version 2.
+   * It belongs to the SDK.
+   */
+
   /**
    * Force any buffered spans to flush.
    * @param timeout to complete the flush
@@ -189,6 +195,8 @@ public:
   }
 
   virtual void CloseWithMicroseconds(uint64_t timeout) noexcept = 0;
+
+#endif /* OPENTELEMETRY_ABI_VERSION_NO */
 };
 }  // namespace trace
 OPENTELEMETRY_END_NAMESPACE

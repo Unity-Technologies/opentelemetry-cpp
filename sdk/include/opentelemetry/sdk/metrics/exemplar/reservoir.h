@@ -2,15 +2,33 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
-#ifndef ENABLE_METRICS_PREVIEW
+
+#ifdef ENABLE_METRICS_EXEMPLAR_PREVIEW
+
+#  include <memory>
 #  include <vector>
-#  include "opentelemetry/sdk/metrics/exemplar/data.h"
+
+#  include "opentelemetry/sdk/metrics/exemplar/filter_type.h"
+#  include "opentelemetry/sdk/metrics/exemplar/reservoir_cell_selector.h"
+#  include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
+namespace common
+{
+class SystemTimestamp;
+}  // namespace common
+
+namespace context
+{
+class Context;
+}  // namespace context
+
 namespace sdk
 {
 namespace metrics
 {
+class ExemplarData;
+
 /**
  * An interface for an exemplar reservoir of samples.
  *
@@ -23,7 +41,7 @@ public:
 
   /** Offers a long measurement to be sampled. */
   virtual void OfferMeasurement(
-      long value,
+      int64_t value,
       const MetricAttributes &attributes,
       const opentelemetry::context::Context &context,
       const opentelemetry::common::SystemTimestamp &timestamp) noexcept = 0;
@@ -45,11 +63,28 @@ public:
    * @return A vector of sampled exemplars for this point. Implementers are expected to
    *     filter out pointAttributes from the original recorded attributes.
    */
-  virtual std::vector<ExemplarData> CollectAndReset(
+  virtual std::vector<std::shared_ptr<ExemplarData>> CollectAndReset(
       const MetricAttributes &pointAttributes) noexcept = 0;
+
+  static nostd::shared_ptr<ExemplarReservoir> GetSimpleFilteredExemplarReservoir(
+      ExemplarFilterType filter_type,
+      std::shared_ptr<ExemplarReservoir> reservoir);
+
+  static nostd::shared_ptr<ExemplarReservoir> GetSimpleFixedSizeExemplarReservoir(
+      size_t size,
+      std::shared_ptr<ReservoirCellSelector> reservoir_cell_selector,
+      MapAndResetCellType map_and_reset_cell);
+
+  static nostd::shared_ptr<ExemplarReservoir> GetAlignedHistogramBucketExemplarReservoir(
+      size_t size,
+      std::shared_ptr<ReservoirCellSelector> reservoir_cell_selector,
+      MapAndResetCellType map_and_reset_cell);
+
+  static nostd::shared_ptr<ExemplarReservoir> GetNoExemplarReservoir();
 };
 
 }  // namespace metrics
 }  // namespace sdk
 OPENTELEMETRY_END_NAMESPACE
-#endif
+
+#endif  // ENABLE_METRICS_EXEMPLAR_PREVIEW

@@ -1,20 +1,40 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-#include "opentelemetry/trace/propagation/jaeger.h"
-#include "opentelemetry/trace/scope.h"
+#include <gtest/gtest.h>
+#include <stdint.h>
+#include <algorithm>
+#include <map>
+#include <string>
+#include <utility>
+#include <vector>
 #include "util.h"
 
-#include <map>
-
-#include <gtest/gtest.h>
+#include "opentelemetry/context/context.h"
+#include "opentelemetry/context/context_value.h"
+#include "opentelemetry/context/propagation/text_map_propagator.h"
+#include "opentelemetry/context/runtime_context.h"
+#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/span.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/nostd/variant.h"
+#include "opentelemetry/trace/context.h"
+#include "opentelemetry/trace/default_span.h"
+#include "opentelemetry/trace/propagation/jaeger.h"
+#include "opentelemetry/trace/scope.h"
+#include "opentelemetry/trace/span.h"
+#include "opentelemetry/trace/span_context.h"
+#include "opentelemetry/trace/span_id.h"
+#include "opentelemetry/trace/span_metadata.h"
+#include "opentelemetry/trace/trace_flags.h"
+#include "opentelemetry/trace/trace_id.h"
 
 using namespace opentelemetry;
 
 class TextMapCarrierTest : public context::propagation::TextMapCarrier
 {
 public:
-  virtual nostd::string_view Get(nostd::string_view key) const noexcept override
+  nostd::string_view Get(nostd::string_view key) const noexcept override
   {
     auto it = headers_.find(std::string(key));
     if (it != headers_.end())
@@ -23,7 +43,7 @@ public:
     }
     return "";
   }
-  virtual void Set(nostd::string_view key, nostd::string_view value) noexcept override
+  void Set(nostd::string_view key, nostd::string_view value) noexcept override
   {
     headers_[std::string(key)] = std::string(value);
   }
@@ -134,6 +154,25 @@ TEST(JaegerPropagatorTest, ExctractInvalidSpans)
   }
 }
 
+TEST(JaegerPropagatorTest, DoNotOverwriteContextWithInvalidSpan)
+{
+  TextMapCarrierTest carrier;
+  constexpr uint8_t buf_span[]  = {1, 2, 3, 4, 5, 6, 7, 8};
+  constexpr uint8_t buf_trace[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+  trace::SpanContext span_context{trace::TraceId{buf_trace}, trace::SpanId{buf_span},
+                                  trace::TraceFlags{true}, false};
+  nostd::shared_ptr<trace::Span> sp{new trace::DefaultSpan{span_context}};
+
+  // Make sure this invalid span does not overwrite the active span context
+  carrier.headers_ = {{"uber-trace-id", "foo:bar:0:00"}};
+  context::Context ctx1{trace::kSpanKey, sp};
+  context::Context ctx2 = format.Extract(carrier, ctx1);
+  auto ctx2_span        = ctx2.GetValue(trace::kSpanKey);
+  auto span             = nostd::get<nostd::shared_ptr<trace::Span>>(ctx2_span);
+
+  EXPECT_EQ(Hex(span->GetContext().trace_id()), "0102030405060708090a0b0c0d0e0f10");
+}
+
 TEST(JaegerPropagatorTest, InjectsContext)
 {
   TextMapCarrierTest carrier;
@@ -161,7 +200,7 @@ TEST(JaegerPropagatorTest, DoNotInjectInvalidContext)
 {
   TextMapCarrierTest carrier;
   context::Context ctx{
-      "current-span",
+      trace::kSpanKey,
       nostd::shared_ptr<trace::Span>(new trace::DefaultSpan(trace::SpanContext::GetInvalid()))};
   format.Inject(carrier, ctx);
   EXPECT_TRUE(carrier.headers_.count("uber-trace-id") == 0);

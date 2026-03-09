@@ -1,16 +1,5 @@
-cc_binary(
-    name = "metrics_simple_example",
-    srcs = [
-        "main.cc",
-    ],
-    linkopts = ["-pthread"],
-    tags = ["ostream"],
-    deps = [
-        "//api",
-        "//exporters/ostream:ostream_metrics_exporter_deprecated",
-        "//sdk/src/_metrics:metrics_deprecated",
-    ],
-)
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
 
 cc_binary(
     name = "metrics_ostream_example",

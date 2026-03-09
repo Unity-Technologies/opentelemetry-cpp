@@ -3,9 +3,20 @@
 
 #pragma once
 
+#include <memory>
 #include <mutex>
 
+#include "opentelemetry/common/attribute_value.h"
+#include "opentelemetry/common/key_value_iterable.h"
+#include "opentelemetry/common/timestamp.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/sdk/trace/recordable.h"
 #include "opentelemetry/sdk/trace/tracer.h"
+#include "opentelemetry/trace/span.h"
+#include "opentelemetry/trace/span_context.h"
+#include "opentelemetry/trace/span_context_kv_iterable.h"
+#include "opentelemetry/trace/span_metadata.h"
+#include "opentelemetry/trace/span_startoptions.h"
 #include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
@@ -26,7 +37,7 @@ public:
 
   ~Span() override;
 
-  // trace::Span
+  // opentelemetry::trace::Span
   void SetAttribute(nostd::string_view key,
                     const opentelemetry::common::AttributeValue &value) noexcept override;
 
@@ -36,8 +47,18 @@ public:
                 opentelemetry::common::SystemTimestamp timestamp) noexcept override;
 
   void AddEvent(nostd::string_view name,
+                const opentelemetry::common::KeyValueIterable &attributes) noexcept override;
+
+  void AddEvent(nostd::string_view name,
                 opentelemetry::common::SystemTimestamp timestamp,
                 const opentelemetry::common::KeyValueIterable &attributes) noexcept override;
+
+#if OPENTELEMETRY_ABI_VERSION_NO >= 2
+  void AddLink(const opentelemetry::trace::SpanContext &target,
+               const opentelemetry::common::KeyValueIterable &attrs) noexcept override;
+
+  void AddLinks(const opentelemetry::trace::SpanContextKeyValueIterable &links) noexcept override;
+#endif
 
   void SetStatus(opentelemetry::trace::StatusCode code,
                  nostd::string_view description) noexcept override;

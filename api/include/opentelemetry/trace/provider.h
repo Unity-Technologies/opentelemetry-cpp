@@ -9,14 +9,16 @@
 #include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/trace/noop.h"
 #include "opentelemetry/trace/tracer_provider.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace trace
 {
+
 /**
  * Stores the singleton global TracerProvider.
  */
-class Provider
+class OPENTELEMETRY_EXPORT Provider
 {
 public:
   /**
@@ -41,13 +43,13 @@ public:
   }
 
 private:
-  static nostd::shared_ptr<TracerProvider> &GetProvider() noexcept
+  OPENTELEMETRY_API_SINGLETON static nostd::shared_ptr<TracerProvider> &GetProvider() noexcept
   {
     static nostd::shared_ptr<TracerProvider> provider(new NoopTracerProvider);
     return provider;
   }
 
-  static common::SpinLockMutex &GetLock() noexcept
+  OPENTELEMETRY_API_SINGLETON static common::SpinLockMutex &GetLock() noexcept
   {
     static common::SpinLockMutex lock;
     return lock;

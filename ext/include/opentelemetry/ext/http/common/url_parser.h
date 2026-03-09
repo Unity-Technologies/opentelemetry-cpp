@@ -3,10 +3,12 @@
 
 #pragma once
 
+#include <stdlib.h>
+#include <cstdint>
 #include <string>
-#include <vector>
-#include "opentelemetry/nostd/string_view.h"
+
 #include "opentelemetry/version.h"
+
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace ext
 {
@@ -52,13 +54,18 @@ public:
     }
 
     // credentials
-    pos = url_.find_first_of("@", cpos);
-    if (pos != std::string::npos)
+    size_t pos1 = url_.find_first_of("@", cpos);
+    size_t pos2 = url_.find_first_of("/", cpos);
+    if (pos1 != std::string::npos)
     {
       // TODO - handle credentials
-      cpos = pos + 1;
+      if (pos2 == std::string::npos || pos1 < pos2)
+      {
+        pos  = pos1;
+        cpos = pos1 + 1;
+      }
     }
-    pos          = url_.find_first_of(":", cpos);
+    pos          = FindPortPosition(url_, cpos);
     bool is_port = false;
     if (pos == std::string::npos)
     {
@@ -78,7 +85,7 @@ public:
     pos = url_.find_first_of("/?", cpos);
     if (pos == std::string::npos)
     {
-      path_ = "/";  // use default path
+      path_ = std::string("/");  // use default path
       if (is_port)
       {
         port_ = static_cast<uint16_t>(
@@ -117,11 +124,89 @@ public:
       }
       return;
     }
-    path_ = "/";
+    path_ = std::string("/");
     if (url_[cpos] == '?')
     {
       query_ = std::string(url_.begin() + cpos, url_.begin() + url_.length());
     }
+  }
+
+private:
+  static std::string::size_type FindPortPosition(const std::string &url,
+                                                 std::string::size_type offset)
+  {
+    // @see https://www.rfc-editor.org/rfc/rfc3986#page-18
+    size_t sub_expression_counter = 0;
+    for (std::string::size_type i = offset; i < url.size(); ++i)
+    {
+      char c = url[i];
+      if (0 == sub_expression_counter && c == ':')
+      {
+        return i;
+      }
+
+      if (c == '[')
+      {
+        ++sub_expression_counter;
+      }
+      else if (c == ']')
+      {
+        if (sub_expression_counter > 0)
+        {
+          --sub_expression_counter;
+        }
+      }
+      else if (0 == sub_expression_counter && c == '/')
+      {
+        break;
+      }
+    }
+
+    return std::string::npos;
+  }
+};
+
+class UrlDecoder
+{
+public:
+  static std::string Decode(const std::string &encoded)
+  {
+    std::string result;
+    result.reserve(encoded.size());
+
+    for (size_t pos = 0; pos < encoded.size(); pos++)
+    {
+      if (encoded[pos] == '%')
+      {
+
+        // Invalid input: less than two characters left after '%'
+        if (encoded.size() < pos + 3)
+        {
+          return encoded;
+        }
+
+        char hex[3] = {0};
+        hex[0]      = encoded[++pos];
+        hex[1]      = encoded[++pos];
+
+        char *endptr;
+        long value = strtol(hex, &endptr, 16);
+
+        // Invalid input: no valid hex characters after '%'
+        if (endptr != &hex[2])
+        {
+          return encoded;
+        }
+
+        result.push_back(static_cast<char>(value));
+      }
+      else
+      {
+        result.push_back(encoded[pos]);
+      }
+    }
+
+    return result;
   }
 };
 

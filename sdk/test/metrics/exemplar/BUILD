@@ -1,3 +1,6 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
 cc_test(
     name = "no_exemplar_reservoir_test",
     srcs = [
@@ -10,14 +13,15 @@ cc_test(
     deps = [
         "//api",
         "//sdk:headers",
+        "//sdk/src/metrics",
         "@com_google_googletest//:gtest_main",
     ],
 )
 
 cc_test(
-    name = "never_sample_filter_test",
+    name = "reservoir_cell_test",
     srcs = [
-        "never_sample_filter_test.cc",
+        "reservoir_cell_test.cc",
     ],
     tags = [
         "metrics",
@@ -26,14 +30,15 @@ cc_test(
     deps = [
         "//api",
         "//sdk:headers",
+        "//sdk/src/metrics",
         "@com_google_googletest//:gtest_main",
     ],
 )
 
 cc_test(
-    name = "always_sample_filter_test",
+    name = "aligned_histogram_bucket_exemplar_reservoir_test",
     srcs = [
-        "always_sample_filter_test.cc",
+        "aligned_histogram_bucket_exemplar_reservoir_test.cc",
     ],
     tags = [
         "metrics",
@@ -42,6 +47,7 @@ cc_test(
     deps = [
         "//api",
         "//sdk:headers",
+        "//sdk/src/metrics",
         "@com_google_googletest//:gtest_main",
     ],
 )

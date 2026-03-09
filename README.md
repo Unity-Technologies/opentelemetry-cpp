@@ -10,41 +10,20 @@ The C++ [OpenTelemetry](https://opentelemetry.io/) client.
 
 ## Project Status
 
-| Signal  | Status                 | Project                                                                  |
-| ------- | ---------------------- | ------------------------------------------------------------------------ |
-| Traces  | Public Release         | N/A                                                                      |
-| Metrics | Development  [1]       | N/A                                                                      |
-| Logs    | Experimental [2]       | N/A                                                                      |
+**Stable** across all 3 signals i.e. `Logs`, `Metrics`, and `Traces`.
 
-* [1]: The development of the metrics API and SDK based on new stable
-      specification is ongoing. The timelines would be available in release
-      milestone. The earlier implementation (based on old specification) can be
-      included in build by setting `ENABLE_METRICS_PREVIEW` preprocessor macro,
-      and is included under `*/_metrics/*` directory. This would be eventually
-      removed once the ongoing implemetation is stable.
-* [2]: The current Log Signal Implementation is Experimental, and will change as
-      the current OpenTelemetry Log specification matures. The current
-      implementation can be included in build by setting `ENABLE_LOGS_PREVIEW`
-      preprocessor macro.
-
-## OpenTelemetry Specification Compatibility Matrix
-
-| API Version | Core Version | Contrib Version         |
-| ----------- |--------------|-------------------------|
-| 1.0.0       | 1.0.0-rc4    | N/A [1]                 |
-| 1.0.0       | 1.0.0        | N/A                     |
-
-* [1]: We don't have releases for opentelemetry-cpp contrib repo. This may
-      change in future.
+See [Spec Compliance
+Matrix](https://github.com/open-telemetry/opentelemetry-specification/blob/main/spec-compliance-matrix.md)
+to understand which portions of the specification has been implemented in this
+repo.
 
 ## Supported C++ Versions
 
 Code shipped from this repository generally supports the following versions of
 C++ standards:
 
-* ISO/IEC 14882:2011 (C++11, C++0x)
-* ISO/IEC 14882:2014 (C++14, C++1y)
-* ISO/IEC 14882:2017 (C++17, C++1z)
+* ISO/IEC 14882:2014 (C++14)
+* ISO/IEC 14882:2017 (C++17)
 * ISO/IEC 14882:2020 (C++20)
 
 Any exceptions to this are noted in the individual `README.md` files.
@@ -59,16 +38,12 @@ of the current project.
 
 | Platform                                                            |   Build type  |
 |---------------------------------------------------------------------|---------------|
-| ubuntu-20.04 (Default GCC Compiler - 9.3.0)                         | CMake, Bazel  |
-| ubuntu-18.04 (GCC 4.8 with -std=c++11 flag)                         | CMake [1]     |
-| ubuntu-20.04 (Default GCC Compiler - 9.3.0 with -std=c++20 flags)   | CMake, Bazel  |
-| macOS 10.15 (Xcode 12.2)                                            | Bazel         |
+| ubuntu-22.04 (GCC 10, GCC 12, Clang 14)                             | CMake, Bazel  |
+| ubuntu-20.04 (GCC 9.4.0 - default compiler)                         | CMake, Bazel  |
+| ubuntu-20.04 (GCC 9.4.0 with -std=c++14/17/20 flags)                | CMake, Bazel  |
+| macOS 12.7 (Xcode 14.2)                                             | Bazel         |
 | Windows Server 2019 (Visual Studio Enterprise 2019)                 | CMake, Bazel  |
-
-[1]: Bazel build is disabled for GCC 4.8, as gRPC library 1.38 and above
-  (required by OTLP expoter) don't build with this compiler. See gRPC [official
-  support](https://grpc.io/docs/#official-support) document. CMake build doesn't
-  build OTLP exporter with GCC 4.8.
+| Windows Server 2022 (Visual Studio Enterprise 2022)                 | CMake         |
 
 In general, the code shipped from this repository should build on all platforms
 having C++ compiler with [supported C++ standards](#supported-c-versions).
@@ -97,9 +72,9 @@ along with build files for CMake and Bazel.
 See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 We meet weekly, and the time of the meeting alternates between Monday at 13:00
-PT and Wednesday at 10:00 PT. The meeting is subject to change depending on
+PT and Wednesday at 9:00 PT. The meeting is subject to change depending on
 contributors' availability. Check the [OpenTelemetry community
-calendar](https://calendar.google.com/calendar/embed?src=google.com_b79e3e90j7bbsa2n2p5an5lf60%40group.calendar.google.com)
+calendar](https://github.com/open-telemetry/community#calendar)
 for specific dates and Zoom meeting links.
 
 Meeting notes are available as a public [Google
@@ -112,13 +87,13 @@ For edit access, get in touch on
 
 * [Ehsan Saei](https://github.com/esigo)
 * [Lalit Kumar Bhasin](https://github.com/lalitb), Microsoft
+* [Marc Alff](https://github.com/marcalff), Oracle
 * [Tom Tan](https://github.com/ThomsonTan), Microsoft
 
 [Approvers](https://github.com/open-telemetry/community/blob/main/community-membership.md#approver)
 ([@open-telemetry/cpp-approvers](https://github.com/orgs/open-telemetry/teams/cpp-approvers)):
 
 * [Josh Suereth](https://github.com/jsuereth), Google
-* [Reiley Yang](https://github.com/reyang), Microsoft
 * [WenTao Ou](https://github.com/owent), Tencent
 
 [Emeritus
@@ -129,6 +104,7 @@ Maintainer/Approver/Triager](https://github.com/open-telemetry/community/blob/ma
 * [Jodee Varney](https://github.com/jodeev)
 * [Johannes Tax](https://github.com/pyohannes)
 * [Max Golovanov](https://github.com/maxgolov)
+* [Reiley Yang](https://github.com/reyang)
 * [Ryan Burn](https://github.com/rnburn)
 
 ### Thanks to all the people who have contributed
@@ -136,8 +112,6 @@ Maintainer/Approver/Triager](https://github.com/open-telemetry/community/blob/ma
 [![contributors](https://contributors-img.web.app/image?repo=open-telemetry/opentelemetry-cpp)](https://github.com/open-telemetry/opentelemetry-cpp/graphs/contributors)
 
 ## Release Schedule
-
-Refer to [project status](#project-status) for current status of the project.
 
 See the [release
 notes](https://github.com/open-telemetry/opentelemetry-cpp/releases) for

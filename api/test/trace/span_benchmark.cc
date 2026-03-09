@@ -1,15 +1,24 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-#include "opentelemetry/nostd/shared_ptr.h"
-#include "opentelemetry/trace/context.h"
-#include "opentelemetry/trace/noop.h"
-#include "opentelemetry/trace/span_id.h"
-#include "opentelemetry/trace/trace_id.h"
-
+#include <benchmark/benchmark.h>
 #include <cstdint>
 
-#include <benchmark/benchmark.h>
+#include "opentelemetry/context/context_value.h"
+#include "opentelemetry/context/runtime_context.h"
+#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/span.h"
+#include "opentelemetry/nostd/variant.h"
+#include "opentelemetry/trace/context.h"
+#include "opentelemetry/trace/default_span.h"
+#include "opentelemetry/trace/noop.h"
+#include "opentelemetry/trace/span.h"
+#include "opentelemetry/trace/span_context.h"
+#include "opentelemetry/trace/span_id.h"
+#include "opentelemetry/trace/span_startoptions.h"
+#include "opentelemetry/trace/trace_flags.h"
+#include "opentelemetry/trace/trace_id.h"
+#include "opentelemetry/trace/tracer.h"
 
 using opentelemetry::trace::SpanContext;
 namespace trace_api = opentelemetry::trace;
@@ -55,19 +64,19 @@ void BM_NestedSpanCreationWithScope(benchmark::State &state)
   auto tracer = initTracer();
   while (state.KeepRunning())
   {
-    auto span  = tracer->StartSpan("outer");
-    auto scope = tracer->WithActiveSpan(span);
+    auto o_span  = tracer->StartSpan("outer");
+    auto o_scope = tracer->WithActiveSpan(o_span);
     {
-      auto span  = tracer->StartSpan("inner");
-      auto scope = tracer->WithActiveSpan(span);
+      auto i_span  = tracer->StartSpan("inner");
+      auto i_scope = tracer->WithActiveSpan(i_span);
       {
-        auto span  = tracer->StartSpan("innermost");
-        auto scope = tracer->WithActiveSpan(span);
-        span->End();
+        auto im_span  = tracer->StartSpan("innermost");
+        auto im_scope = tracer->WithActiveSpan(im_span);
+        im_span->End();
       }
-      span->End();
+      i_span->End();
     }
-    span->End();
+    o_span->End();
   }
 }
 
@@ -115,10 +124,10 @@ void BM_SpanCreationWitContextPropagation(benchmark::State &state)
         nostd::shared_ptr<trace_api::Span>(new trace_api::DefaultSpan(outer_span_context));
     trace_api::SetSpan(current_ctx, outer_span);
     auto inner_child = tracer->StartSpan("inner");
-    auto scope       = tracer->WithActiveSpan(inner_child);
+    auto inner_scope = tracer->WithActiveSpan(inner_child);
     {
       auto innermost_child = tracer->StartSpan("innermost");
-      auto scope           = tracer->WithActiveSpan(innermost_child);
+      auto innermost_scope = tracer->WithActiveSpan(innermost_child);
       innermost_child->End();
     }
     inner_child->End();
