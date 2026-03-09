@@ -1,0 +1,3 @@
+.yamato/scripts/build.ps1
+.yamato/scripts/package.ps1
+.yamato/scripts/prepare_vm_windows.ps1
