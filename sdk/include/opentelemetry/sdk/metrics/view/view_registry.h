@@ -4,13 +4,16 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "opentelemetry/nostd/function_ref.h"
+#include "opentelemetry/sdk/common/global_log_handler.h"
 #include "opentelemetry/sdk/instrumentationscope/instrumentation_scope.h"
+#include "opentelemetry/sdk/metrics/aggregation/default_aggregation.h"
 #include "opentelemetry/sdk/metrics/instruments.h"
 #include "opentelemetry/sdk/metrics/view/instrument_selector.h"
 #include "opentelemetry/sdk/metrics/view/meter_selector.h"
@@ -47,6 +50,60 @@ public:
   {
     // TBD - thread-safe ?
 
+    // Validate parameters
+    if (!instrument_selector || !meter_selector || !view)
+    {
+      OTEL_INTERNAL_LOG_ERROR(
+          "[ViewRegistry::AddView] Invalid parameters: instrument_selector, meter_selector, and "
+          "view cannot be null. Ignoring AddView call.");
+      return;
+    }
+
+    auto aggregation_config = view->GetAggregationConfig();
+    if (aggregation_config)
+    {
+      bool valid                   = false;
+      auto aggregation_config_type = aggregation_config->GetType();
+      auto aggregation_type        = view->GetAggregationType();
+
+      if (aggregation_type == AggregationType::kDefault)
+      {
+        bool is_monotonic{false};
+        aggregation_type = DefaultAggregation::GetDefaultAggregationType(
+            instrument_selector->GetInstrumentType(), is_monotonic);
+      }
+
+      switch (aggregation_type)
+      {
+        case AggregationType::kHistogram:
+          valid = (aggregation_config_type == AggregationType::kHistogram);
+          break;
+
+        case AggregationType::kBase2ExponentialHistogram:
+          valid = (aggregation_config_type == AggregationType::kBase2ExponentialHistogram);
+          break;
+
+        case AggregationType::kDrop:
+        case AggregationType::kLastValue:
+        case AggregationType::kSum:
+          valid = (aggregation_config_type == AggregationType::kDefault);
+          break;
+
+        default:
+          // Unreachable: all AggregationType enum values are handled above
+          assert(false && "Unreachable: unhandled AggregationType");
+          valid = false;
+      }
+
+      if (!valid)
+      {
+        OTEL_INTERNAL_LOG_ERROR(
+            "[ViewRegistry::AddView] AggregationType and AggregationConfig type mismatch. "
+            "Ignoring AddView call.");
+        return;
+      }
+    }
+
     auto registered_view = std::unique_ptr<RegisteredView>(new RegisteredView{
         std::move(instrument_selector), std::move(meter_selector), std::move(view)});
     registered_views_.push_back(std::move(registered_view));
@@ -82,7 +139,13 @@ public:
     return true;
   }
 
-  ViewRegistry()  = default;
+  ViewRegistry() = default;
+
+  ViewRegistry(const ViewRegistry &)            = delete;
+  ViewRegistry(ViewRegistry &&)                 = delete;
+  ViewRegistry &operator=(const ViewRegistry &) = delete;
+  ViewRegistry &operator=(ViewRegistry &&)      = delete;
+
   ~ViewRegistry() = default;
 
 private:

@@ -4,11 +4,16 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <string>
 
 #include "opentelemetry/exporters/otlp/otlp_environment.h"
 #include "opentelemetry/exporters/otlp/otlp_http.h"
 #include "opentelemetry/version.h"
+
+#ifdef ENABLE_ASYNC_EXPORT
+#  include <cstddef>
+#endif
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace exporter
@@ -27,7 +32,14 @@ namespace otlp
  */
 struct OPENTELEMETRY_EXPORT OtlpHttpLogRecordExporterOptions
 {
+  /** Lookup environment variables. */
   OtlpHttpLogRecordExporterOptions();
+  /** No defaults. */
+  OtlpHttpLogRecordExporterOptions(void *);
+  OtlpHttpLogRecordExporterOptions(const OtlpHttpLogRecordExporterOptions &)            = default;
+  OtlpHttpLogRecordExporterOptions(OtlpHttpLogRecordExporterOptions &&)                 = default;
+  OtlpHttpLogRecordExporterOptions &operator=(const OtlpHttpLogRecordExporterOptions &) = default;
+  OtlpHttpLogRecordExporterOptions &operator=(OtlpHttpLogRecordExporterOptions &&)      = default;
   ~OtlpHttpLogRecordExporterOptions();
 
   /** The endpoint to export to. */
@@ -101,6 +113,18 @@ struct OPENTELEMETRY_EXPORT OtlpHttpLogRecordExporterOptions
 
   /** Compression type. */
   std::string compression;
+
+  /** The maximum number of call attempts, including the original attempt. */
+  std::uint32_t retry_policy_max_attempts{};
+
+  /** The initial backoff delay between retry attempts, random between (0, initial_backoff). */
+  std::chrono::duration<float> retry_policy_initial_backoff{};
+
+  /** The maximum backoff places an upper limit on exponential backoff growth. */
+  std::chrono::duration<float> retry_policy_max_backoff{};
+
+  /** The backoff will be multiplied by this value after each retry attempt. */
+  float retry_policy_backoff_multiplier{};
 };
 
 }  // namespace otlp

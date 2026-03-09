@@ -7,6 +7,9 @@
 # Enable automatic configs based on platform
 common --enable_platform_specific_config
 
+# Make globs that don't match anything fail
+common --incompatible_disallow_empty_glob
+
 # Needed by gRPC to build on some platforms.
 build --copt -DGRPC_BAZEL_BUILD
 
@@ -14,9 +17,9 @@ build --copt -DGRPC_BAZEL_BUILD
 build:windows --dynamic_mode=off
 
 # Set minimum supported C++ version
-build:macos --host_cxxopt=-std=c++14 --cxxopt=-std=c++14
-build:linux --host_cxxopt=-std=c++14 --cxxopt=-std=c++14
-build:windows --host_cxxopt=/std:c++14 --cxxopt=/std:c++14
+build:macos --host_cxxopt=-std=c++17 --cxxopt=-std=c++17
+build:linux --host_cxxopt=-std=c++17 --cxxopt=-std=c++17
+build:windows --host_cxxopt=/std:c++17 --cxxopt=/std:c++17
 
 # --config=asan : Address Sanitizer.
 common:asan --copt -DADDRESS_SANITIZER

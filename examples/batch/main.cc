@@ -11,15 +11,16 @@
 
 #include "opentelemetry/exporters/ostream/span_exporter_factory.h"
 #include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/string_view.h"
 #include "opentelemetry/sdk/resource/resource.h"
 #include "opentelemetry/sdk/trace/batch_span_processor_factory.h"
 #include "opentelemetry/sdk/trace/batch_span_processor_options.h"
+#include "opentelemetry/sdk/trace/exporter.h"
 #include "opentelemetry/sdk/trace/processor.h"
-#include "opentelemetry/sdk/trace/recordable.h"
+#include "opentelemetry/sdk/trace/provider.h"
 #include "opentelemetry/sdk/trace/tracer_provider.h"
 #include "opentelemetry/sdk/trace/tracer_provider_factory.h"
 #include "opentelemetry/trace/provider.h"
-#include "opentelemetry/trace/span_id.h"
 #include "opentelemetry/trace/tracer.h"
 #include "opentelemetry/trace/tracer_provider.h"
 
@@ -57,13 +58,13 @@ void InitTracer()
       trace_sdk::TracerProviderFactory::Create(std::move(processor), resource);
 
   // Set the global trace provider.
-  trace_api::Provider::SetTracerProvider(provider);
+  trace_sdk::Provider::SetTracerProvider(provider);
 }
 
 void CleanupTracer()
 {
   std::shared_ptr<opentelemetry::trace::TracerProvider> none;
-  trace_api::Provider::SetTracerProvider(none);
+  trace_sdk::Provider::SetTracerProvider(none);
 }
 
 opentelemetry::nostd::shared_ptr<trace_api::Tracer> get_tracer()
@@ -82,7 +83,7 @@ void StartAndEndSpans()
 
 }  // namespace
 
-int main()
+int main(int /* argc */, char ** /* argv */)
 {
   // Removing this line will leave the default noop TracerProvider in place.
   InitTracer();
@@ -108,4 +109,5 @@ int main()
   // which in turn invokes the processor Shutdown(), which finally drains the queue of ALL
   // its spans.
   CleanupTracer();
+  return 0;
 }

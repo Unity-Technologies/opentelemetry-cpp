@@ -18,7 +18,11 @@ namespace metrics
  */
 struct PrometheusExporterOptions
 {
+  // Lookup environment variables
   PrometheusExporterOptions();
+
+  // No defaults
+  PrometheusExporterOptions(void *);
 
   // The endpoint the Prometheus backend can collect metrics from
   std::string url;
@@ -28,6 +32,12 @@ struct PrometheusExporterOptions
 
   // Populating otel_scope_name/otel_scope_labels attributes
   bool without_otel_scope = false;
+
+  // Option to export metrics without the unit suffix
+  bool without_units = false;
+
+  // Option to export metrics without the type suffix
+  bool without_type_suffix = false;
 };
 
 }  // namespace metrics

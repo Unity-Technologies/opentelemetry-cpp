@@ -1,7 +1,6 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-#include <algorithm>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -12,14 +11,15 @@
 #include "opentelemetry/exporters/memory/in_memory_span_data.h"
 #include "opentelemetry/exporters/memory/in_memory_span_exporter_factory.h"
 #include "opentelemetry/exporters/ostream/span_exporter_factory.h"
+#include "opentelemetry/nostd/span.h"
 #include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/sdk/trace/exporter.h"
 #include "opentelemetry/sdk/trace/processor.h"
-#include "opentelemetry/sdk/trace/recordable.h"
+#include "opentelemetry/sdk/trace/provider.h"
 #include "opentelemetry/sdk/trace/simple_processor_factory.h"
 #include "opentelemetry/sdk/trace/span_data.h"
 #include "opentelemetry/sdk/trace/tracer_provider.h"
 #include "opentelemetry/sdk/trace/tracer_provider_factory.h"
-#include "opentelemetry/trace/provider.h"
 #include "opentelemetry/trace/span_id.h"
 #include "opentelemetry/trace/span_metadata.h"
 #include "opentelemetry/trace/trace_id.h"
@@ -54,7 +54,7 @@ std::shared_ptr<InMemorySpanData> InitTracer()
       trace_sdk::TracerProviderFactory::Create(std::move(processors));
 
   // Set the global trace provider
-  trace_api::Provider::SetTracerProvider(std::move(provider));
+  trace_sdk::Provider::SetTracerProvider(provider);
 
   return data;
 }
@@ -62,7 +62,7 @@ std::shared_ptr<InMemorySpanData> InitTracer()
 void CleanupTracer()
 {
   std::shared_ptr<opentelemetry::trace::TracerProvider> none;
-  trace_api::Provider::SetTracerProvider(none);
+  trace_sdk::Provider::SetTracerProvider(none);
 }
 
 void dumpSpans(std::vector<std::unique_ptr<trace_sdk::SpanData>> &spans)
@@ -97,7 +97,7 @@ void dumpSpans(std::vector<std::unique_ptr<trace_sdk::SpanData>> &spans)
 }
 }  // namespace
 
-int main()
+int main(int /* argc */, char ** /* argv */)
 {
   // Removing this line will leave the default noop TracerProvider in place.
   std::shared_ptr<InMemorySpanData> data = InitTracer();
@@ -107,4 +107,5 @@ int main()
   dumpSpans(memory_spans);
 
   CleanupTracer();
+  return 0;
 }

@@ -3,9 +3,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "opentelemetry/opentracingshim/shim_utils.h"
+#include <algorithm>
+#include <functional>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
+#include "opentracing/propagation.h"
+#include "opentracing/span.h"
+#include "opentracing/tracer.h"
+
+#include "opentelemetry/baggage/baggage.h"
 #include "opentelemetry/baggage/baggage_context.h"
+#include "opentelemetry/common/timestamp.h"
+#include "opentelemetry/context/runtime_context.h"
+#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/variant.h"
+#include "opentelemetry/opentracingshim/shim_utils.h"
+#include "opentelemetry/opentracingshim/span_context_shim.h"
+#include "opentelemetry/trace/span_context.h"
+#include "opentelemetry/trace/span_startoptions.h"
+#include "opentelemetry/version.h"
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace opentracingshim
@@ -71,11 +90,7 @@ nostd::shared_ptr<opentelemetry::baggage::Baggage> makeBaggage(
     entry.second->ForeachBaggageItem(
         [&baggage_items](const std::string &key, const std::string &value) {
           // It is unspecified which Baggage value is used in the case of repeated keys.
-          if (baggage_items.find(key) == baggage_items.end())
-          {
-            baggage_items.emplace(key, value);  // Here, only insert if key not already present
-          }
-          return true;
+          return baggage_items.emplace(key, value).second;
         });
   }
   // If no such list of references is specified, the current Baggage

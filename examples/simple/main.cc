@@ -5,13 +5,12 @@
 #include <utility>
 
 #include "opentelemetry/exporters/ostream/span_exporter_factory.h"
+#include "opentelemetry/sdk/trace/exporter.h"
 #include "opentelemetry/sdk/trace/processor.h"
-#include "opentelemetry/sdk/trace/recordable.h"
+#include "opentelemetry/sdk/trace/provider.h"
 #include "opentelemetry/sdk/trace/simple_processor_factory.h"
 #include "opentelemetry/sdk/trace/tracer_provider.h"
 #include "opentelemetry/sdk/trace/tracer_provider_factory.h"
-#include "opentelemetry/trace/provider.h"
-#include "opentelemetry/trace/span_id.h"
 #include "opentelemetry/trace/tracer_provider.h"
 
 #ifdef BAZEL_BUILD
@@ -36,17 +35,17 @@ void InitTracer()
 
   // Set the global trace provider
   const std::shared_ptr<opentelemetry::trace::TracerProvider> &api_provider = sdk_provider;
-  trace_api::Provider::SetTracerProvider(api_provider);
+  trace_sdk::Provider::SetTracerProvider(api_provider);
 }
 
 void CleanupTracer()
 {
   std::shared_ptr<opentelemetry::trace::TracerProvider> noop;
-  trace_api::Provider::SetTracerProvider(noop);
+  trace_sdk::Provider::SetTracerProvider(noop);
 }
 }  // namespace
 
-int main()
+int main(int /* argc */, char ** /* argv */)
 {
   // Removing this line will leave the default noop TracerProvider in place.
   InitTracer();
@@ -54,4 +53,5 @@ int main()
   foo_library();
 
   CleanupTracer();
+  return 0;
 }

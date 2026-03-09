@@ -34,6 +34,12 @@ class ReadWriteLogRecord final : public ReadableLogRecord
 {
 public:
   ReadWriteLogRecord();
+
+  ReadWriteLogRecord(const ReadWriteLogRecord &)            = delete;
+  ReadWriteLogRecord(ReadWriteLogRecord &&)                 = delete;
+  ReadWriteLogRecord &operator=(const ReadWriteLogRecord &) = delete;
+  ReadWriteLogRecord &operator=(ReadWriteLogRecord &&)      = delete;
+
   ~ReadWriteLogRecord() override;
 
   /**
@@ -82,7 +88,7 @@ public:
    * Get body field of this log.
    * @return the body field for this log.
    */
-  const opentelemetry::common::AttributeValue &GetBody() const noexcept override;
+  const opentelemetry::sdk::common::OwnedAttributeValue &GetBody() const noexcept override;
 
   /**
    * Set the Event Id object
@@ -151,8 +157,8 @@ public:
    * Get attributes of this log.
    * @return the body field of this log
    */
-  const std::unordered_map<std::string, opentelemetry::common::AttributeValue> &GetAttributes()
-      const noexcept override;
+  const std::unordered_map<std::string, opentelemetry::sdk::common::OwnedAttributeValue> &
+  GetAttributes() const noexcept override;
 
   /**
    * Get resource of this log
@@ -162,7 +168,7 @@ public:
 
   /**
    * Set Resource of this log
-   * @param Resource the resource to set
+   * @param resource the resource to set
    */
   void SetResource(const opentelemetry::sdk::resource::Resource &resource) noexcept override;
 
@@ -187,8 +193,8 @@ private:
   const opentelemetry::sdk::resource::Resource *resource_;
   const opentelemetry::sdk::instrumentationscope::InstrumentationScope *instrumentation_scope_;
 
-  std::unordered_map<std::string, opentelemetry::common::AttributeValue> attributes_map_;
-  opentelemetry::common::AttributeValue body_;
+  std::unordered_map<std::string, opentelemetry::sdk::common::OwnedAttributeValue> attributes_map_;
+  opentelemetry::sdk::common::OwnedAttributeValue body_;
   opentelemetry::common::SystemTimestamp timestamp_;
   opentelemetry::common::SystemTimestamp observed_timestamp_;
 

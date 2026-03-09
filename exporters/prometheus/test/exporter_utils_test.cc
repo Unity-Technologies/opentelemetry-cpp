@@ -2,13 +2,26 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <gtest/gtest.h>
-
+#include <prometheus/client_metric.h>
+#include <prometheus/metric_family.h>
+#include <prometheus/metric_type.h>
+#include <stddef.h>
+#include <limits>
+#include <list>
+#include <string>
 #include <utility>
-#include "prometheus/metric_family.h"
-#include "prometheus/metric_type.h"
+#include <vector>
 
+#include "opentelemetry/common/timestamp.h"
 #include "opentelemetry/exporters/prometheus/exporter_utils.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/nostd/unique_ptr.h"
+#include "opentelemetry/sdk/instrumentationscope/instrumentation_scope.h"
+#include "opentelemetry/sdk/metrics/data/metric_data.h"
+#include "opentelemetry/sdk/metrics/export/metric_producer.h"
+#include "opentelemetry/sdk/metrics/instruments.h"
 #include "opentelemetry/sdk/resource/resource.h"
+#include "opentelemetry/version.h"
 #include "prometheus_test_helper.h"
 
 using opentelemetry::exporter::metrics::PrometheusExporterUtils;
@@ -54,21 +67,24 @@ public:
   }
   static std::string mapToPrometheusName(const std::string &name,
                                          const std::string &unit,
-                                         prometheus_client::MetricType prometheus_type)
+                                         prometheus_client::MetricType prometheus_type,
+                                         bool without_units       = false,
+                                         bool without_type_suffix = false)
   {
-    return PrometheusExporterUtils::MapToPrometheusName(name, unit, prometheus_type);
+    return PrometheusExporterUtils::MapToPrometheusName(name, unit, prometheus_type, without_units,
+                                                        without_type_suffix);
   }
 };
 }  // namespace metrics
 }  // namespace exporter
 
 template <typename T>
-void assert_basic(prometheus_client::MetricFamily &metric,
-                  const std::string &expected_name,
-                  const std::string &description,
-                  prometheus_client::MetricType type,
-                  size_t label_num,
-                  std::vector<T> vals)
+static void assert_basic(prometheus_client::MetricFamily &metric,
+                         const std::string &expected_name,
+                         const std::string &description,
+                         prometheus_client::MetricType type,
+                         size_t label_num,
+                         std::vector<T> vals)
 {
   ASSERT_EQ(metric.name, expected_name);  // name sanitized
   ASSERT_EQ(metric.help, description);    // description not changed
@@ -86,18 +102,21 @@ void assert_basic(prometheus_client::MetricFamily &metric,
   switch (type)
   {
     case prometheus_client::MetricType::Counter: {
-      ASSERT_DOUBLE_EQ(metric_data.counter.value, vals[0]);
+      ASSERT_DOUBLE_EQ(static_cast<double>(metric_data.counter.value),
+                       static_cast<double>(vals[0]));
       break;
     }
     case prometheus_client::MetricType::Histogram: {
-      ASSERT_DOUBLE_EQ(metric_data.histogram.sample_count, vals[0]);
-      ASSERT_DOUBLE_EQ(metric_data.histogram.sample_sum, vals[1]);
+      ASSERT_DOUBLE_EQ(static_cast<double>(metric_data.histogram.sample_count),
+                       static_cast<double>(vals[0]));
+      ASSERT_DOUBLE_EQ(static_cast<double>(metric_data.histogram.sample_sum),
+                       static_cast<double>(vals[1]));
       auto buckets = metric_data.histogram.bucket;
       ASSERT_EQ(buckets.size(), vals[2]);
       break;
     }
     case prometheus_client::MetricType::Gauge: {
-      ASSERT_DOUBLE_EQ(metric_data.gauge.value, vals[0]);
+      ASSERT_DOUBLE_EQ(static_cast<double>(metric_data.gauge.value), static_cast<double>(vals[0]));
       break;
     }
     break;
@@ -111,9 +130,9 @@ void assert_basic(prometheus_client::MetricFamily &metric,
   }
 }
 
-void assert_histogram(prometheus_client::MetricFamily &metric,
-                      const std::list<double> &boundaries,
-                      std::vector<int> correct)
+static void assert_histogram(prometheus_client::MetricFamily &metric,
+                             const std::list<double> &boundaries,
+                             std::vector<int> correct)
 {
   int cumulative_count = 0;
   auto buckets         = metric.metric[0].histogram.bucket;
@@ -417,6 +436,93 @@ TEST(PrometheusExporterUtils, ConvertRateExpressedToPrometheusUnit)
             "unit_per_minute");
   ASSERT_EQ(exporter::metrics::SanitizeNameTester::convertRateExpressedToPrometheusUnit("/m"),
             "_per_minute");
+}
+
+TEST(PromentheusExporterUtils, PrometheusNameMapping)
+{
+  // General test cases on unit expansions and name sanitization
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric___name", "g", prometheus::MetricType::Counter),
+            "sample_metric_name_grams_total");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "s", prometheus::MetricType::Counter),
+            "sample_metric_name_seconds_total");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "s", prometheus::MetricType::Gauge),
+            "sample_metric_name_seconds");
+  // Test without_units & without_type_suffix with Counters and unit = 1
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "1", prometheus::MetricType::Counter),
+            "sample_metric_name_total");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "1", prometheus::MetricType::Counter, true, false),
+            "sample_metric_name_total");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "1", prometheus::MetricType::Counter, false, true),
+            "sample_metric_name");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "1", prometheus::MetricType::Counter, true, true),
+            "sample_metric_name");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "1", prometheus::MetricType::Counter, true, true),
+            "sample_metric_name");
+  // Test without_units & without_type_suffix with Counters and non-special units
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "%", prometheus::MetricType::Counter),
+            "sample_metric_name_percent_total");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "m", prometheus::MetricType::Counter, true, false),
+            "sample_metric_name_total");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "By", prometheus::MetricType::Counter, false, true),
+            "sample_metric_name_bytes");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "s", prometheus::MetricType::Counter, true, true),
+            "sample_metric_name");
+  // Special case Gauges & ratio
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "1", prometheus::MetricType::Gauge),
+            "sample_metric_name_ratio");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "1", prometheus::MetricType::Gauge, false, true),
+            "sample_metric_name_ratio");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "1", prometheus::MetricType::Gauge, true, false),
+            "sample_metric_name");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "1", prometheus::MetricType::Gauge, true, true),
+            "sample_metric_name");
+  // Test without_type_suffix affects only counters
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "Hz", prometheus::MetricType::Counter),
+            "sample_metric_name_hertz_total");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "Hz", prometheus::MetricType::Counter, false, true),
+            "sample_metric_name_hertz");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "Hz", prometheus::MetricType::Gauge),
+            "sample_metric_name_hertz");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "Hz", prometheus::MetricType::Gauge, false, true),
+            "sample_metric_name_hertz");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "Hz", prometheus::MetricType::Histogram),
+            "sample_metric_name_hertz");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "Hz", prometheus::MetricType::Histogram, false, true),
+            "sample_metric_name_hertz");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "Hz", prometheus::MetricType::Summary),
+            "sample_metric_name_hertz");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "Hz", prometheus::MetricType::Summary, false, true),
+            "sample_metric_name_hertz");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "Hz", prometheus::MetricType::Info),
+            "sample_metric_name_hertz");
+  ASSERT_EQ(exporter::metrics::SanitizeNameTester::mapToPrometheusName(
+                "sample_metric_name", "Hz", prometheus::MetricType::Info, false, true),
+            "sample_metric_name_hertz");
 }
 
 TEST_F(AttributeCollisionTest, JoinsCollidingKeys)

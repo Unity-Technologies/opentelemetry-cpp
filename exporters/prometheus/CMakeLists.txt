@@ -1,10 +1,11 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
-include_directories(include)
-if(NOT TARGET prometheus-cpp::core)
-  find_package(prometheus-cpp CONFIG REQUIRED)
-endif()
+include(${PROJECT_SOURCE_DIR}/cmake/pkgconfig.cmake)
+
+#
+# opentelemetry_exporter_prometheus
+#
 
 add_library(
   opentelemetry_exporter_prometheus
@@ -20,36 +21,67 @@ target_include_directories(
   PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>"
          "$<INSTALL_INTERFACE:include>")
 
-set(PROMETHEUS_EXPORTER_TARGETS opentelemetry_exporter_prometheus)
-if(TARGET pull)
-  list(APPEND PROMETHEUS_EXPORTER_TARGETS pull)
-endif()
-if(TARGET core)
-  list(APPEND PROMETHEUS_EXPORTER_TARGETS core)
-endif()
-if(TARGET util)
-  list(APPEND PROMETHEUS_EXPORTER_TARGETS util)
-endif()
-set(PROMETHEUS_CPP_TARGETS prometheus-cpp::pull prometheus-cpp::core)
-if(TARGET prometheus-cpp::util)
-  list(APPEND PROMETHEUS_CPP_TARGETS prometheus-cpp::util)
-endif()
-target_link_libraries(opentelemetry_exporter_prometheus
-                      PUBLIC opentelemetry_metrics ${PROMETHEUS_CPP_TARGETS})
+target_link_libraries(
+  opentelemetry_exporter_prometheus
+  PUBLIC opentelemetry_metrics prometheus-cpp::core
+  PRIVATE prometheus-cpp::pull)
+
+#
+# opentelemetry_exporter_prometheus_builder
+#
+
+add_library(opentelemetry_exporter_prometheus_builder
+            src/prometheus_pull_builder.cc)
+
+set_target_properties(opentelemetry_exporter_prometheus_builder
+                      PROPERTIES EXPORT_NAME prometheus_exporter_builder)
+set_target_version(opentelemetry_exporter_prometheus_builder)
+
+target_include_directories(
+  opentelemetry_exporter_prometheus_builder
+  PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>"
+         "$<INSTALL_INTERFACE:include>")
+
+target_link_libraries(opentelemetry_exporter_prometheus_builder
+                      PUBLIC opentelemetry_exporter_prometheus)
+
+otel_add_component(
+  COMPONENT
+  exporters_prometheus
+  TARGETS
+  opentelemetry_exporter_prometheus
+  FILES_DIRECTORY
+  "include/opentelemetry/exporters/prometheus"
+  FILES_DESTINATION
+  "include/opentelemetry/exporters"
+  FILES_MATCHING
+  PATTERN
+  "*.h"
+  PATTERN
+  "prometheus_pull_builder.h"
+  EXCLUDE)
+
+otel_add_component(
+  COMPONENT
+  exporters_prometheus_builder
+  TARGETS
+  opentelemetry_exporter_prometheus_builder
+  FILES_DIRECTORY
+  "include/opentelemetry/exporters/prometheus"
+  FILES_DESTINATION
+  "include/opentelemetry/exporters"
+  FILES_MATCHING
+  PATTERN
+  "prometheus_pull_builder.h")
 
 if(OPENTELEMETRY_INSTALL)
-  install(
-    TARGETS ${PROMETHEUS_EXPORTER_TARGETS}
-    EXPORT "${PROJECT_NAME}-target"
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  opentelemetry_add_pkgconfig(
+    exporter_prometheus "OpenTelemetry Exporter - Prometheus"
+    "Exports metrics in Prometheus format." "opentelemetry_metrics")
 
-  install(
-    DIRECTORY include/opentelemetry/exporters/prometheus
-    DESTINATION include/opentelemetry/exporters/
-    FILES_MATCHING
-    PATTERN "*.h")
+  opentelemetry_add_pkgconfig(
+    exporter_prometheus_builder "OpenTelemetry Exporter - Prometheus Builder"
+    "Builder for Prometheus exporter." "opentelemetry_exporter_prometheus")
 endif()
 
 if(BUILD_TESTING)

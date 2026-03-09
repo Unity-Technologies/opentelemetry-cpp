@@ -2,22 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <gtest/gtest.h>
-#include <memory>
 #include <string>
 #include <utility>
 
 #include "opentelemetry/common/macros.h"
+#include "opentelemetry/nostd/function_ref.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/nostd/unique_ptr.h"
 #include "opentelemetry/sdk/instrumentationscope/instrumentation_scope.h"
 #include "opentelemetry/sdk/metrics/instruments.h"
-#include "opentelemetry/sdk/metrics/state/filtered_ordered_attribute_map.h"
 #include "opentelemetry/sdk/metrics/view/instrument_selector.h"
 #include "opentelemetry/sdk/metrics/view/meter_selector.h"
 #include "opentelemetry/sdk/metrics/view/view.h"
 #include "opentelemetry/sdk/metrics/view/view_registry.h"
-
-#if OPENTELEMETRY_HAVE_WORKING_REGEX
-#  include <regex>
-#endif
 
 using namespace opentelemetry::sdk::metrics;
 using namespace opentelemetry::sdk::instrumentationscope;
@@ -95,4 +92,47 @@ TEST(ViewRegistry, FindNonExistingView)
   EXPECT_EQ(count, 1);
   EXPECT_EQ(status, true);
 #endif
+}
+
+// Tests for ViewRegistry::AddView null parameter validation
+// These should log errors and ignore the call instead of throwing or aborting
+
+TEST(ViewRegistry, AddViewWithNullInstrumentSelector)
+{
+  ViewRegistry registry;
+  std::unique_ptr<MeterSelector> meter_selector{new MeterSelector("name", "version", "schema")};
+  std::unique_ptr<View> view{new View("test_view")};
+
+  // Should not throw or abort, just log and ignore
+  registry.AddView(nullptr, std::move(meter_selector), std::move(view));
+}
+
+TEST(ViewRegistry, AddViewWithNullMeterSelector)
+{
+  ViewRegistry registry;
+  std::unique_ptr<InstrumentSelector> instrument_selector{
+      new InstrumentSelector(InstrumentType::kCounter, "instrument_name", "unit")};
+  std::unique_ptr<View> view{new View("test_view")};
+
+  // Should not throw or abort, just log and ignore
+  registry.AddView(std::move(instrument_selector), nullptr, std::move(view));
+}
+
+TEST(ViewRegistry, AddViewWithNullView)
+{
+  ViewRegistry registry;
+  std::unique_ptr<InstrumentSelector> instrument_selector{
+      new InstrumentSelector(InstrumentType::kCounter, "instrument_name", "unit")};
+  std::unique_ptr<MeterSelector> meter_selector{new MeterSelector("name", "version", "schema")};
+
+  // Should not throw or abort, just log and ignore
+  registry.AddView(std::move(instrument_selector), std::move(meter_selector), nullptr);
+}
+
+TEST(ViewRegistry, AddViewWithAllNullParameters)
+{
+  ViewRegistry registry;
+
+  // Should not throw or abort, just log and ignore
+  registry.AddView(nullptr, nullptr, nullptr);
 }

@@ -7,9 +7,11 @@
 #include <cstdint>
 #include <initializer_list>
 #include <iterator>
+#include <string>
 #include <thread>
 #include <vector>
 
+#include "opentelemetry/nostd/span.h"
 #include "src/common/random.h"
 
 using opentelemetry::sdk::common::Random;
@@ -40,7 +42,7 @@ TEST(RandomTest, GenerateRandomBuffer)
   }
 }
 
-void doSomethingOnce(std::atomic_uint *count)
+static void doSomethingOnce(std::atomic_uint *count)
 {
   static std::atomic_flag flag;
   if (!flag.test_and_set())

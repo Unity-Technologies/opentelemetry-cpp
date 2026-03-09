@@ -1,19 +1,40 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-#include "server.h"
+#include "opentelemetry/context/context.h"
+#include "opentelemetry/context/propagation/global_propagator.h"
+#include "opentelemetry/context/propagation/text_map_propagator.h"
+#include "opentelemetry/context/runtime_context.h"
+#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/nostd/variant.h"
+#include "opentelemetry/semconv/client_attributes.h"
+#include "opentelemetry/semconv/incubating/http_attributes.h"
+#include "opentelemetry/semconv/server_attributes.h"
+#include "opentelemetry/semconv/url_attributes.h"
 #include "opentelemetry/trace/context.h"
-#include "opentelemetry/trace/semantic_conventions.h"
+#include "opentelemetry/trace/scope.h"
+#include "opentelemetry/trace/span.h"
+#include "opentelemetry/trace/span_context.h"
+#include "opentelemetry/trace/span_metadata.h"
+#include "opentelemetry/trace/span_startoptions.h"
+#include "opentelemetry/trace/tracer.h"
 #include "tracer_common.h"
 
+#include <stdlib.h>
+#include <chrono>
 #include <iostream>
+#include <map>
 #include <thread>
+#include <utility>
+#include "server.h"
 
 namespace
 {
 
 using namespace opentelemetry::trace;
 namespace context = opentelemetry::context;
+namespace semconv = opentelemetry::semconv;
 
 uint16_t server_port              = 8800;
 constexpr const char *server_name = "localhost";
@@ -40,13 +61,13 @@ public:
     // start span with parent context extracted from http header
     auto span = get_tracer("http-server")
                     ->StartSpan(span_name,
-                                {{SemanticConventions::kServerAddress, server_name},
-                                 {SemanticConventions::kServerPort, server_port},
-                                 {SemanticConventions::kHttpRequestMethod, request.method},
-                                 {SemanticConventions::kUrlScheme, "http"},
-                                 {SemanticConventions::kHttpRequestBodySize,
+                                {{semconv::server::kServerAddress, server_name},
+                                 {semconv::server::kServerPort, server_port},
+                                 {semconv::http::kHttpRequestMethod, request.method},
+                                 {semconv::url::kUrlScheme, "http"},
+                                 {semconv::http::kHttpRequestBodySize,
                                   static_cast<uint64_t>(request.content.length())},
-                                 {SemanticConventions::kClientAddress, request.client}},
+                                 {semconv::client::kClientAddress, request.client}},
                                 options);
 
     auto scope = get_tracer("http_server")->WithActiveSpan(span);

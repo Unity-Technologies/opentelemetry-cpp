@@ -3,7 +3,6 @@
 
 #include <gtest/gtest.h>
 #include <stdint.h>
-#include <algorithm>
 #include <map>
 #include <string>
 #include <utility>
@@ -11,9 +10,9 @@
 #include "util.h"
 
 #include "opentelemetry/context/context.h"
-#include "opentelemetry/context/context_value.h"
 #include "opentelemetry/context/propagation/text_map_propagator.h"
 #include "opentelemetry/context/runtime_context.h"
+#include "opentelemetry/nostd/function_ref.h"
 #include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/nostd/span.h"
 #include "opentelemetry/nostd/string_view.h"

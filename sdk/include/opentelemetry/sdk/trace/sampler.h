@@ -71,7 +71,15 @@ struct SamplingResult
 class Sampler
 {
 public:
+  Sampler() = default;
+
+  Sampler(const Sampler &)            = delete;
+  Sampler(Sampler &&)                 = delete;
+  Sampler &operator=(const Sampler &) = delete;
+  Sampler &operator=(Sampler &&)      = delete;
+
   virtual ~Sampler() = default;
+
   /**
    * Called during Span creation to make a sampling decision.
    *
@@ -80,13 +88,12 @@ public:
    * @param trace_id the TraceId for the new Span. This will be identical to that in
    *        the parentContext, unless this is a root span.
    * @param name the name of the new Span.
-   * @param spanKind the opentelemetry::trace::SpanKind of the Span.
+   * @param span_kind the opentelemetry::trace::SpanKind of the Span.
    * @param attributes list of AttributeValue with their keys.
    * @param links Collection of links that will be associated with the Span to be created.
    * @return sampling result whether span should be sampled or not.
    * @since 0.1.0
    */
-
   virtual SamplingResult ShouldSample(
       const opentelemetry::trace::SpanContext &parent_context,
       opentelemetry::trace::TraceId trace_id,

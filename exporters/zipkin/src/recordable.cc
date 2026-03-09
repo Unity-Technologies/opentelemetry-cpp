@@ -5,7 +5,6 @@
 #include <chrono>
 #include <map>
 #include <string>
-#include <type_traits>
 #include <unordered_map>
 #include <utility>
 
@@ -15,13 +14,13 @@
 #include "opentelemetry/common/key_value_iterable.h"
 #include "opentelemetry/common/timestamp.h"
 #include "opentelemetry/exporters/zipkin/recordable.h"
+#include "opentelemetry/nostd/function_ref.h"
 #include "opentelemetry/nostd/span.h"
 #include "opentelemetry/nostd/string_view.h"
 #include "opentelemetry/nostd/variant.h"
-#include "opentelemetry/sdk/common/attribute_utils.h"
 #include "opentelemetry/sdk/instrumentationscope/instrumentation_scope.h"
 #include "opentelemetry/sdk/resource/resource.h"
-#include "opentelemetry/sdk/resource/semantic_conventions.h"
+#include "opentelemetry/semconv/service_attributes.h"
 #include "opentelemetry/trace/span_context.h"
 #include "opentelemetry/trace/span_id.h"
 #include "opentelemetry/trace/span_metadata.h"
@@ -71,9 +70,9 @@ void Recordable::SetIdentity(const trace_api::SpanContext &span_context,
   span_["traceId"] = std::string(trace_id_lower_base16, 32);
 }
 
-void PopulateAttribute(nlohmann::json &attribute,
-                       nostd::string_view key,
-                       const common::AttributeValue &value)
+static void PopulateAttribute(nlohmann::json &attribute,
+                              nostd::string_view key,
+                              const common::AttributeValue &value)
 {
   // Assert size of variant to ensure that this method gets updated if the variant
   // definition changes
@@ -244,9 +243,9 @@ void Recordable::SetResource(const sdk::resource::Resource &resource) noexcept
 {
   // only service.name attribute is supported by specs as of now.
   auto attributes = resource.GetAttributes();
-  if (attributes.find(SemanticConventions::kServiceName) != attributes.end())
+  if (attributes.find(semconv::service::kServiceName) != attributes.end())
   {
-    service_name_ = nostd::get<std::string>(attributes[SemanticConventions::kServiceName]);
+    service_name_ = nostd::get<std::string>(attributes[semconv::service::kServiceName]);
   }
 }
 

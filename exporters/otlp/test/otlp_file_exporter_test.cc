@@ -1,32 +1,51 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+#include <gtest/gtest.h>
+#include <stddef.h>
+#include <chrono>
+#include <cstdint>
+#include <functional>
+#include <nlohmann/json.hpp>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include "opentelemetry/common/timestamp.h"
+#include "opentelemetry/exporters/otlp/otlp_file_client_options.h"
+#include "opentelemetry/exporters/otlp/otlp_file_exporter.h"
 #include "opentelemetry/exporters/otlp/otlp_file_exporter_factory.h"
 #include "opentelemetry/exporters/otlp/otlp_file_exporter_options.h"
-
-#include "opentelemetry/exporters/otlp/otlp_file_exporter.h"
-
-#include "opentelemetry/exporters/otlp/protobuf_include_prefix.h"
-
-#include "google/protobuf/message_lite.h"
-#include "opentelemetry/proto/collector/trace/v1/trace_service.pb.h"
-
-#include "opentelemetry/exporters/otlp/protobuf_include_suffix.h"
-
+#include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/span.h"
+#include "opentelemetry/nostd/string_view.h"
+#include "opentelemetry/nostd/variant.h"
+#include "opentelemetry/sdk/common/exporter_utils.h"
+#include "opentelemetry/sdk/resource/resource.h"
 #include "opentelemetry/sdk/trace/batch_span_processor.h"
 #include "opentelemetry/sdk/trace/batch_span_processor_options.h"
+#include "opentelemetry/sdk/trace/exporter.h"
+#include "opentelemetry/sdk/trace/processor.h"
+#include "opentelemetry/sdk/trace/recordable.h"
 #include "opentelemetry/sdk/trace/tracer_provider.h"
+#include "opentelemetry/trace/span.h"
+#include "opentelemetry/trace/span_context.h"
+#include "opentelemetry/trace/span_startoptions.h"
+#include "opentelemetry/trace/trace_id.h"
+#include "opentelemetry/trace/tracer.h"
+#include "opentelemetry/version.h"
 
-#include "opentelemetry/trace/provider.h"
+// clang-format off
+#include "opentelemetry/exporters/otlp/protobuf_include_prefix.h" // IWYU pragma: keep
+#include "google/protobuf/message_lite.h"
+#include "opentelemetry/exporters/otlp/protobuf_include_suffix.h" // IWYU pragma: keep
+// clang-format on
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-
-#include "nlohmann/json.hpp"
-
-#include <chrono>
-#include <iostream>
-#include <sstream>
+#if OPENTELEMETRY_ABI_VERSION_NO >= 2
+#  include "opentelemetry/common/attribute_value.h"
+#endif
 
 using namespace testing;
 
@@ -42,8 +61,12 @@ namespace resource  = opentelemetry::sdk::resource;
 class ProtobufGlobalSymbolGuard
 {
 public:
-  ProtobufGlobalSymbolGuard() {}
+  ProtobufGlobalSymbolGuard() = default;
   ~ProtobufGlobalSymbolGuard() { google::protobuf::ShutdownProtobufLibrary(); }
+  ProtobufGlobalSymbolGuard(const ProtobufGlobalSymbolGuard &)            = delete;
+  ProtobufGlobalSymbolGuard &operator=(const ProtobufGlobalSymbolGuard &) = delete;
+  ProtobufGlobalSymbolGuard(ProtobufGlobalSymbolGuard &&)                 = delete;
+  ProtobufGlobalSymbolGuard &operator=(ProtobufGlobalSymbolGuard &&)      = delete;
 };
 
 template <class T, size_t N>
@@ -80,7 +103,7 @@ public:
     resource_attributes["vec_uint64_value"]          = std::vector<uint64_t>{7, 8};
     resource_attributes["vec_double_value"]          = std::vector<double>{3.2, 3.3};
     resource_attributes["vec_string_value"]          = std::vector<std::string>{"vector", "string"};
-    auto resource = resource::Resource::Create(resource_attributes);
+    auto resource = resource::Resource::Create(resource_attributes, "resource_url");
 
     auto processor_opts                  = sdk::trace::BatchSpanProcessorOptions();
     processor_opts.max_export_batch_size = 5;
@@ -94,9 +117,17 @@ public:
 
     std::string report_trace_id;
 
+#if OPENTELEMETRY_ABI_VERSION_NO >= 2
+    std::unordered_map<std::string, common::AttributeValue> scope_attributes;
+    scope_attributes["scope_key"] = common::AttributeValue("scope_value");
+    auto tracer = provider->GetTracer("scope_name", "scope_version", "scope_url", scope_attributes);
+#else
+    auto tracer = provider->GetTracer("scope_name", "scope_version", "scope_url");
+#endif
+
+    auto parent_span = tracer->StartSpan("Test parent span");
+
     char trace_id_hex[2 * trace_api::TraceId::kSize] = {0};
-    auto tracer                                      = provider->GetTracer("test");
-    auto parent_span                                 = tracer->StartSpan("Test parent span");
 
     trace_api::StartSpanOptions child_span_opts = {};
     child_span_opts.parent                      = parent_span->GetContext();
@@ -118,14 +149,31 @@ public:
     auto check_json_text = output.str();
     if (!check_json_text.empty())
     {
+      // If the exporting is splited to two standalone resource_span, just checking the first one.
+      std::string::size_type eol = check_json_text.find('\n');
+      if (eol != std::string::npos)
+      {
+        check_json_text = check_json_text.substr(0, eol);
+      }
       auto check_json = nlohmann::json::parse(check_json_text, nullptr, false);
       if (!check_json.is_discarded())
       {
-        auto resource_span     = *check_json["resourceSpans"].begin();
-        auto scope_span        = *resource_span["scopeSpans"].begin();
-        auto span              = *scope_span["spans"].begin();
-        auto received_trace_id = span["traceId"].get<std::string>();
-        EXPECT_EQ(received_trace_id, report_trace_id);
+        auto resource_span = *check_json["resourceSpans"].begin();
+        auto scope_span    = *resource_span["scopeSpans"].begin();
+        auto scope         = scope_span["scope"];
+        auto span          = *scope_span["spans"].begin();
+
+#if OPENTELEMETRY_ABI_VERSION_NO >= 2
+        ASSERT_EQ(1, scope["attributes"].size());
+        const auto scope_attribute = scope["attributes"].front();
+        EXPECT_EQ("scope_key", scope_attribute["key"].get<std::string>());
+        EXPECT_EQ("scope_value", scope_attribute["value"]["stringValue"].get<std::string>());
+#endif
+        EXPECT_EQ("resource_url", resource_span["schemaUrl"].get<std::string>());
+        EXPECT_EQ("scope_url", scope_span["schemaUrl"].get<std::string>());
+        EXPECT_EQ("scope_name", scope["name"].get<std::string>());
+        EXPECT_EQ("scope_version", scope["version"].get<std::string>());
+        EXPECT_EQ(report_trace_id, span["traceId"].get<std::string>());
       }
       else
       {

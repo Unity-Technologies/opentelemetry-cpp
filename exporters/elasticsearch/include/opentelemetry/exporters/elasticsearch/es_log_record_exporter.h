@@ -3,18 +3,24 @@
 
 #pragma once
 
-#include "nlohmann/json.hpp"
-#include "opentelemetry/ext/http/client/http_client_factory.h"
+#include <atomic>
+#include <chrono>
+#include <map>
+#include <string>
+
+#include "opentelemetry/ext/http/client/http_client.h"
 #include "opentelemetry/nostd/shared_ptr.h"
+#include "opentelemetry/nostd/span.h"
+#include "opentelemetry/sdk/common/exporter_utils.h"
 #include "opentelemetry/sdk/logs/exporter.h"
 #include "opentelemetry/sdk/logs/recordable.h"
+#include "opentelemetry/version.h"
 
-#include <time.h>
-#include <atomic>
-#include <condition_variable>
-#include <cstddef>
-#include <iostream>
-#include <mutex>
+#ifdef ENABLE_ASYNC_EXPORT
+#  include <condition_variable>
+#  include <cstddef>
+#  include <mutex>
+#endif
 
 OPENTELEMETRY_BEGIN_NAMESPACE
 namespace exporter
@@ -52,12 +58,12 @@ struct ElasticsearchExporterOptions
    * from elasticsearch
    * @param console_debug If true, print the status of the exporter methods in the console
    */
-  ElasticsearchExporterOptions(std::string host         = "localhost",
-                               int port                 = 9200,
-                               std::string index        = "logs",
-                               int response_timeout     = 30,
-                               bool console_debug       = false,
-                               HttpHeaders http_headers = {})
+  ElasticsearchExporterOptions(const std::string &host         = "localhost",
+                               int port                        = 9200,
+                               const std::string &index        = "logs",
+                               int response_timeout            = 30,
+                               bool console_debug              = false,
+                               const HttpHeaders &http_headers = {})
       : host_{host},
         port_{port},
         index_{index},

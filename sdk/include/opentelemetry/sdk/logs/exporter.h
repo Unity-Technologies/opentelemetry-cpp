@@ -23,6 +23,12 @@ class OPENTELEMETRY_EXPORT LogRecordExporter
 {
 public:
   LogRecordExporter();
+
+  LogRecordExporter(const LogRecordExporter &)            = delete;
+  LogRecordExporter(LogRecordExporter &&)                 = delete;
+  LogRecordExporter &operator=(const LogRecordExporter &) = delete;
+  LogRecordExporter &operator=(LogRecordExporter &&)      = delete;
+
   virtual ~LogRecordExporter();
 
   /**
@@ -51,7 +57,7 @@ public:
    * Force flush the log records pushed into this log exporter.
    */
   virtual bool ForceFlush(
-      std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept;
+      std::chrono::microseconds timeout = (std::chrono::microseconds::max)()) noexcept = 0;
 
   /**
    * Marks the exporter as ShutDown and cleans up any resources as required.

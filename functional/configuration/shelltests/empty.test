@@ -1,0 +1,8 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+$ example_yaml --test --yaml shelltests/empty.yaml
+>
+[ERROR] <shelltests/empty.yaml>:0[0](0): Yaml: not a map, looking for: file_format
+FAILED TO PARSE MODEL
+>= 1

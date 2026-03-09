@@ -159,11 +159,16 @@ void UpdateStatus(T &t, Properties &props)
 /**
  * @brief Tracer class that allows to send spans to ETW Provider.
  */
-
 class Tracer : public opentelemetry::trace::Tracer,
                public std::enable_shared_from_this<opentelemetry::trace::Tracer>
 {
+public:
+  /**
+   * @brief Indicates whether the tracer is closed.
+   */
+  bool IsClosed() const noexcept { return isClosed_.load(); }
 
+private:
   /**
    * @brief Parent provider of this Tracer
    */
@@ -397,16 +402,6 @@ class Tracer : public opentelemetry::trace::Tracer,
 
   friend class Span;
 
-  /**
-   * @brief Init a reference to etw::ProviderHandle
-   * @return Provider Handle
-   */
-  ETWProvider::Handle &initProvHandle()
-  {
-    isClosed_ = false;
-    return etwProvider().open(provId, encoding);
-  }
-
 public:
   /**
    * @brief Tracer constructor
@@ -421,11 +416,11 @@ public:
         tracerProvider_(parent),
         provId(providerId.data(), providerId.size()),
         encoding(encoding),
-        provHandle(initProvHandle())
+        provHandle(etwProvider().open(provId, encoding))
   {
+    isClosed_.store(false);
     traceId_ = GetIdGenerator(tracerProvider_).GenerateTraceId();
   }
-
   /**
    * @brief Start Span
    * @param name Span name
@@ -590,6 +585,21 @@ public:
     return result;
   }
 
+#if OPENTELEMETRY_ABI_VERSION_NO >= 2
+  /**
+   * Reports if the tracer is enabled or not. A disabled tracer will not create spans.
+   * Note: The etw_tracer currently does not accept a TracerConfig and can therefore not be disabled
+   * based on the instrumentation scope.
+   *
+   * The instrumentation authors should call this method before creating a spans to
+   * potentially avoid performing computationally expensive operations for disabled tracers.
+   *
+   * @since ABI_VERSION 2
+   */
+  virtual bool Enabled() const noexcept { return true; }
+#endif
+
+#if OPENTELEMETRY_ABI_VERSION_NO == 1
   /**
    * @brief Force flush data to Tracer, spending up to given amount of microseconds to flush.
    * NOTE: this method has no effect for the realtime streaming Tracer.
@@ -615,6 +625,7 @@ public:
       etwProvider().close(provHandle);
     }
   }
+#endif
 
   /**
    * @brief Add event data to span associated with tracer.
@@ -736,7 +747,18 @@ public:
   /**
    * @brief Tracer destructor.
    */
-  virtual ~Tracer() { CloseWithMicroseconds(0); }
+  virtual ~Tracer()
+  {
+#if OPENTELEMETRY_ABI_VERSION_NO == 1
+    CloseWithMicroseconds(0);
+#else
+    // Close once only
+    if (!isClosed_.exchange(true))
+    {
+      etwProvider().close(provHandle);
+    }
+#endif
+  }
 };
 
 /**
@@ -892,6 +914,34 @@ public:
   {
     owner_.AddEvent(*this, name, timestamp, attributes);
   }
+
+#if OPENTELEMETRY_ABI_VERSION_NO >= 2
+
+  /**
+   * Add link (ABI).
+   *
+   * See comments about sampling in @ref opentelemetry::trace::Span
+   *
+   * @since ABI_VERSION 2
+   */
+  void AddLink(const trace::SpanContext & /*target*/,
+               const common::KeyValueIterable & /*attrs*/) noexcept override
+  {
+    // FIXME: What to do with links?
+  }
+
+  /**
+   * Add links (ABI).
+   *
+   * See comments about sampling in @ref opentelemetry::trace::Span
+   *
+   * @since ABI_VERSION 2
+   */
+  void AddLinks(const trace::SpanContextKeyValueIterable & /*links*/) noexcept override
+  {
+    // FIXME: What to do with links?
+  }
+#endif
 
   /**
    * @brief Set Span status
@@ -1116,7 +1166,13 @@ public:
   nostd::shared_ptr<opentelemetry::trace::Tracer> GetTracer(
       nostd::string_view name,
       nostd::string_view args       = "",
-      nostd::string_view schema_url = "") noexcept override
+      nostd::string_view schema_url = ""
+#if OPENTELEMETRY_ABI_VERSION_NO >= 2
+      ,
+      // FIXME: This is a temporary workaround to avoid breaking compiling.
+      const common::KeyValueIterable * /*attributes*/ = nullptr
+#endif
+      ) noexcept override
   {
     UNREFERENCED_PARAMETER(args);
     UNREFERENCED_PARAMETER(schema_url);

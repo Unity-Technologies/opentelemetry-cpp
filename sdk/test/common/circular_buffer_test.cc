@@ -11,10 +11,10 @@
 #include <initializer_list>
 #include <memory>
 #include <random>
+#include <string>
 #include <thread>
 #include <vector>
 
-#include "opentelemetry/nostd/span.h"
 #include "opentelemetry/sdk/common/atomic_unique_ptr.h"
 #include "opentelemetry/sdk/common/circular_buffer.h"
 #include "opentelemetry/sdk/common/circular_buffer_range.h"
@@ -63,9 +63,9 @@ static void RunNumberProducers(CircularBuffer<uint32_t> &buffer,
   }
 }
 
-void RunNumberConsumer(CircularBuffer<uint32_t> &buffer,
-                       std::atomic<bool> &exit,
-                       std::vector<uint32_t> &numbers)
+static void RunNumberConsumer(CircularBuffer<uint32_t> &buffer,
+                              std::atomic<bool> &exit,
+                              std::vector<uint32_t> &numbers)
 {
   while (true)
   {

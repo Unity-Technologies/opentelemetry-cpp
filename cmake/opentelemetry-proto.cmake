@@ -2,26 +2,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 #
-# The dependency on opentelemetry-proto can be provided different ways. By order
+# The dependency on opentelemetry-proto can be provided by order
 # of decreasing priority, options are:
 #
-# 1 - Use a provided package
+# 1 - Fetch from local source directory defined by the OTELCPP_PROTO_PATH variable
 #
-# This is useful to build opentelemetry-cpp as part of a super project.
+# 2 - Fetch from the opentelemetry-proto git submodule (opentelemetry-cpp/third_party/opentelemetry-proto)
 #
-# The super project provides the path to the opentelemetry-proto source code
-# using variable ${OTELCPP_PROTO_PATH}
+# 3 - Fetch from github using the git tag set in opentelemetry-cpp/third_party_release
 #
-# 2 - Search for a opentelemetry-proto git submodule
-#
-# When git submodule is used, the opentelemetry-proto code is located in:
-# third_party/opentelemetry-proto
-#
-# 3 - Download opentelemetry-proto from github
-#
-# Code from the required version is used, unless a specific release tag is
-# provided in variable ${opentelemetry-proto}
-#
+
+set(OPENTELEMETRY_PROTO_SUBMODULE "${opentelemetry-cpp_SOURCE_DIR}/third_party/opentelemetry-proto")
 
 if(OTELCPP_PROTO_PATH)
   if(NOT EXISTS
@@ -30,48 +21,34 @@ if(OTELCPP_PROTO_PATH)
       FATAL_ERROR
         "OTELCPP_PROTO_PATH does not point to a opentelemetry-proto repository")
   endif()
-  message(STATUS "opentelemetry-proto dependency satisfied by: external path")
-  set(PROTO_PATH ${OTELCPP_PROTO_PATH})
-  set(needs_proto_download FALSE)
+  message(STATUS "fetching opentelemetry-proto from OTELCPP_PROTO_PATH=${OTELCPP_PROTO_PATH}")
+  FetchContent_Declare(
+      opentelemetry-proto
+      SOURCE_DIR ${OTELCPP_PROTO_PATH}
+  )
+  set(opentelemetry-proto_PROVIDER "fetch_source")
+  # If the opentelemetry-proto directory is a general directory then we don't have a good way to determine the version. Set it as unknown.
+  set(opentelemetry-proto_VERSION "unknown")
+elseif(EXISTS ${OPENTELEMETRY_PROTO_SUBMODULE}/.git)
+   message(STATUS "fetching opentelemetry-proto from git submodule")
+   FetchContent_Declare(
+      opentelemetry-proto
+      SOURCE_DIR ${OPENTELEMETRY_PROTO_SUBMODULE}
+  )
+  set(opentelemetry-proto_PROVIDER "fetch_source")
+  string(REGEX REPLACE "^v([0-9]+\\.[0-9]+\\.[0-9]+)$" "\\1" opentelemetry-proto_VERSION "${opentelemetry-proto_GIT_TAG}")
 else()
-  if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/opentelemetry-proto/.git)
-    message(STATUS "opentelemetry-proto dependency satisfied by: git submodule")
-    set(PROTO_PATH
-        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/opentelemetry-proto")
-    set(needs_proto_download FALSE)
-  else()
-    message(
-      STATUS "opentelemetry-proto dependency satisfied by: github download")
-    if("${opentelemetry-proto}" STREQUAL "")
-      file(READ "${CMAKE_CURRENT_LIST_DIR}/../third_party_release"
-           OTELCPP_THIRD_PARTY_RELEASE_CONTENT)
-      if(OTELCPP_THIRD_PARTY_RELEASE_CONTENT MATCHES
-         "opentelemetry-proto=[ \\t]*([A-Za-z0-9_\\.\\-]+)")
-        set(opentelemetry-proto "${CMAKE_MATCH_1}")
-      else()
-        set(opentelemetry-proto "v1.3.2")
-      endif()
-      unset(OTELCPP_THIRD_PARTY_RELEASE_CONTENT)
-    endif()
-    include(ExternalProject)
-    ExternalProject_Add(
+  FetchContent_Declare(
       opentelemetry-proto
       GIT_REPOSITORY https://github.com/open-telemetry/opentelemetry-proto.git
-      GIT_TAG "${opentelemetry-proto}"
-      UPDATE_COMMAND ""
-      BUILD_COMMAND ""
-      INSTALL_COMMAND ""
-      CONFIGURE_COMMAND ""
-      TEST_AFTER_INSTALL 0
-      DOWNLOAD_NO_PROGRESS 1
-      LOG_CONFIGURE 1
-      LOG_BUILD 1
-      LOG_INSTALL 1)
-    ExternalProject_Get_Property(opentelemetry-proto INSTALL_DIR)
-    set(PROTO_PATH "${INSTALL_DIR}/src/opentelemetry-proto")
-    set(needs_proto_download TRUE)
-  endif()
+      GIT_TAG "${opentelemetry-proto_GIT_TAG}")
+  set(opentelemetry-proto_PROVIDER "fetch_repository")
+  string(REGEX REPLACE "^v([0-9]+\\.[0-9]+\\.[0-9]+)$" "\\1" opentelemetry-proto_VERSION "${opentelemetry-proto_GIT_TAG}")
 endif()
+
+FetchContent_MakeAvailable(opentelemetry-proto)
+
+set(PROTO_PATH "${opentelemetry-proto_SOURCE_DIR}")
 
 set(COMMON_PROTO "${PROTO_PATH}/opentelemetry/proto/common/v1/common.proto")
 set(RESOURCE_PROTO
@@ -81,10 +58,7 @@ set(LOGS_PROTO "${PROTO_PATH}/opentelemetry/proto/logs/v1/logs.proto")
 set(METRICS_PROTO "${PROTO_PATH}/opentelemetry/proto/metrics/v1/metrics.proto")
 
 set(PROFILES_PROTO
-    "${PROTO_PATH}/opentelemetry/proto/profiles/v1experimental/profiles.proto")
-set(PROFILES_EXT_PROTO
-    "${PROTO_PATH}/opentelemetry/proto/profiles/v1experimental/pprofextended.proto"
-)
+    "${PROTO_PATH}/opentelemetry/proto/profiles/v1development/profiles.proto")
 
 set(TRACE_SERVICE_PROTO
     "${PROTO_PATH}/opentelemetry/proto/collector/trace/v1/trace_service.proto")
@@ -95,7 +69,7 @@ set(METRICS_SERVICE_PROTO
 )
 
 set(PROFILES_SERVICE_PROTO
-    "${PROTO_PATH}/opentelemetry/proto/collector/profiles/v1experimental/profiles_service.proto"
+    "${PROTO_PATH}/opentelemetry/proto/collector/profiles/v1development/profiles_service.proto"
 )
 
 set(GENERATED_PROTOBUF_PATH
@@ -138,30 +112,24 @@ set(TRACE_SERVICE_PB_H_FILE
 #
 
 set(PROFILES_CPP_FILE
-    "${GENERATED_PROTOBUF_PATH}/opentelemetry/proto/profiles/v1experimental/profiles.pb.cc"
+    "${GENERATED_PROTOBUF_PATH}/opentelemetry/proto/profiles/v1development/profiles.pb.cc"
 )
 set(PROFILES_H_FILE
-    "${GENERATED_PROTOBUF_PATH}/opentelemetry/proto/profiles/v1experimental/profiles.pb.h"
-)
-set(PROFILES_EXT_CPP_FILE
-    "${GENERATED_PROTOBUF_PATH}/opentelemetry/proto/profiles/v1experimental/pprofextended.pb.cc"
-)
-set(PROFILES_EXT_H_FILE
-    "${GENERATED_PROTOBUF_PATH}/opentelemetry/proto/profiles/v1experimental/pprofextended.pb.h"
+    "${GENERATED_PROTOBUF_PATH}/opentelemetry/proto/profiles/v1development/profiles.pb.h"
 )
 set(PROFILES_SERVICE_PB_H_FILE
-    "${GENERATED_PROTOBUF_PATH}/opentelemetry/proto/collector/profiles/v1experimental/profiles_service.pb.h"
+    "${GENERATED_PROTOBUF_PATH}/opentelemetry/proto/collector/profiles/v1development/profiles_service.pb.h"
 )
 set(PROFILES_SERVICE_PB_CPP_FILE
-    "${GENERATED_PROTOBUF_PATH}/opentelemetry/proto/collector/profiles/v1experimental/profiles_service.pb.cc"
+    "${GENERATED_PROTOBUF_PATH}/opentelemetry/proto/collector/profiles/v1development/profiles_service.pb.cc"
 )
 
 if(WITH_OTLP_GRPC)
   set(PROFILES_SERVICE_GRPC_PB_H_FILE
-      "${GENERATED_PROTOBUF_PATH}/opentelemetry/proto/collector/profiles/v1experimental/profiles_service.grpc.pb.h"
+      "${GENERATED_PROTOBUF_PATH}/opentelemetry/proto/collector/profiles/v1development/profiles_service.grpc.pb.h"
   )
   set(PROFILES_SERVICE_GRPC_PB_CPP_FILE
-      "${GENERATED_PROTOBUF_PATH}/opentelemetry/proto/collector/profiles/v1experimental/profiles_service.grpc.pb.cc"
+      "${GENERATED_PROTOBUF_PATH}/opentelemetry/proto/collector/profiles/v1development/profiles_service.grpc.pb.cc"
   )
 endif()
 
@@ -206,28 +174,35 @@ foreach(IMPORT_DIR ${PROTOBUF_IMPORT_DIRS})
   list(APPEND PROTOBUF_INCLUDE_FLAGS "-I${IMPORT_DIR}")
 endforeach()
 
-if(WITH_OTLP_GRPC)
-  if(CMAKE_CROSSCOMPILING)
-    find_program(gRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
-  else()
-    if(TARGET gRPC::grpc_cpp_plugin)
-      project_build_tools_get_imported_location(gRPC_CPP_PLUGIN_EXECUTABLE
-                                                gRPC::grpc_cpp_plugin)
-    else()
-      find_program(gRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
-    endif()
-  endif()
-  message(STATUS "gRPC_CPP_PLUGIN_EXECUTABLE=${gRPC_CPP_PLUGIN_EXECUTABLE}")
-endif()
-
-set(PROTOBUF_COMMON_FLAGS "--proto_path=${PROTO_PATH}"
-                          "--cpp_out=${GENERATED_PROTOBUF_PATH}")
+set(PROTOBUF_COMMON_FLAGS
+    "--proto_path=${PROTO_PATH}"
+    "--cpp_out=dllexport_decl=OPENTELEMETRY_PROTO_API:${GENERATED_PROTOBUF_PATH}"
+)
 # --experimental_allow_proto3_optional is available from 3.13 and be stable and
 # enabled by default from 3.16
 if(Protobuf_VERSION AND Protobuf_VERSION VERSION_LESS "3.16")
   list(APPEND PROTOBUF_COMMON_FLAGS "--experimental_allow_proto3_optional")
 elseif(PROTOBUF_VERSION AND PROTOBUF_VERSION VERSION_LESS "3.16")
   list(APPEND PROTOBUF_COMMON_FLAGS "--experimental_allow_proto3_optional")
+endif()
+
+# protobuf uses numerous global variables, which can lead to conflicts when a
+# user's dynamic libraries, executables, and otel-cpp are all built as dynamic
+# libraries and linked against a statically built protobuf library. This may
+# result in crashes. To prevent such conflicts, we also need to build
+# opentelemetry_exporter_otlp_grpc_client as a static library.
+if(TARGET protobuf::libprotobuf)
+  get_target_property(protobuf_lib_type protobuf::libprotobuf TYPE)
+else()
+  set(protobuf_lib_type "SHARED_LIBRARY")
+  target_link_libraries(opentelemetry_proto PUBLIC ${Protobuf_LIBRARIES})
+  foreach(protobuf_lib_file ${Protobuf_LIBRARIES})
+    if(protobuf_lib_file MATCHES
+       "(^|[\\\\\\/])[^\\\\\\/]*protobuf[^\\\\\\/]*\\.(a|lib)$")
+      set(protobuf_lib_type "STATIC_LIBRARY")
+      break()
+    endif()
+  endforeach()
 endif()
 
 set(PROTOBUF_GENERATED_FILES
@@ -243,8 +218,6 @@ set(PROTOBUF_GENERATED_FILES
     ${METRICS_PB_CPP_FILE}
     ${PROFILES_H_FILE}
     ${PROFILES_CPP_FILE}
-    ${PROFILES_EXT_H_FILE}
-    ${PROFILES_EXT_CPP_FILE}
     ${TRACE_SERVICE_PB_H_FILE}
     ${TRACE_SERVICE_PB_CPP_FILE}
     ${LOGS_SERVICE_PB_H_FILE}
@@ -254,7 +227,10 @@ set(PROTOBUF_GENERATED_FILES
     ${PROFILES_SERVICE_PB_H_FILE}
     ${PROFILES_SERVICE_PB_CPP_FILE})
 
+set(PROTOBUF_GENERATE_DEPENDS ${PROTOBUF_PROTOC_EXECUTABLE})
+
 if(WITH_OTLP_GRPC)
+  list(APPEND PROTOBUF_GENERATE_DEPENDS ${gRPC_CPP_PLUGIN_EXECUTABLE})
   list(APPEND PROTOBUF_COMMON_FLAGS
        "--grpc_out=generate_mock_code=true:${GENERATED_PROTOBUF_PATH}"
        --plugin=protoc-gen-grpc="${gRPC_CPP_PLUGIN_EXECUTABLE}")
@@ -283,7 +259,6 @@ foreach(
   ${LOGS_PROTO}
   ${METRICS_PROTO}
   ${PROFILES_PROTO}
-  ${PROFILES_EXT_PROTO}
   ${TRACE_SERVICE_PROTO}
   ${LOGS_SERVICE_PROTO}
   ${METRICS_SERVICE_PROTO}
@@ -298,19 +273,18 @@ add_custom_command(
     ${PROTOBUF_PROTOC_EXECUTABLE} ${PROTOBUF_COMMON_FLAGS}
     ${PROTOBUF_INCLUDE_FLAGS} ${COMMON_PROTO} ${RESOURCE_PROTO} ${TRACE_PROTO}
     ${LOGS_PROTO} ${METRICS_PROTO} ${TRACE_SERVICE_PROTO} ${LOGS_SERVICE_PROTO}
-    ${METRICS_SERVICE_PROTO} ${PROFILES_PROTO} ${PROFILES_EXT_PROTO}
-    ${PROFILES_SERVICE_PROTO}
-  COMMENT "[Run]: ${PROTOBUF_RUN_PROTOC_COMMAND}")
-
-include_directories("${GENERATED_PROTOBUF_PATH}")
+    ${METRICS_SERVICE_PROTO} ${PROFILES_PROTO} ${PROFILES_SERVICE_PROTO}
+  COMMENT "[Run]: ${PROTOBUF_RUN_PROTOC_COMMAND}"
+  DEPENDS ${PROTOBUF_GENERATE_DEPENDS})
 
 unset(OTELCPP_PROTO_TARGET_OPTIONS)
-if(CMAKE_SYSTEM_NAME MATCHES "Windows|MinGW|WindowsStore")
-  list(APPEND OTELCPP_PROTO_TARGET_OPTIONS STATIC)
-elseif(NOT DEFINED BUILD_SHARED_LIBS OR BUILD_SHARED_LIBS)
+if((NOT protobuf_lib_type STREQUAL "STATIC_LIBRARY")
+   AND (NOT DEFINED BUILD_SHARED_LIBS OR BUILD_SHARED_LIBS))
   list(APPEND OTELCPP_PROTO_TARGET_OPTIONS SHARED)
+  set(OTELCPP_PROTO_LIB_TYPE "SHARED_LIBRARY")
 else()
   list(APPEND OTELCPP_PROTO_TARGET_OPTIONS STATIC)
+  set(OTELCPP_PROTO_LIB_TYPE "STATIC_LIBRARY")
 endif()
 
 set(OPENTELEMETRY_PROTO_TARGETS opentelemetry_proto)
@@ -327,14 +301,34 @@ add_library(
   ${METRICS_SERVICE_PB_CPP_FILE})
 set_target_version(opentelemetry_proto)
 
-# Disable include-what-you-use on generated code.
+if(OTELCPP_PROTO_LIB_TYPE STREQUAL "SHARED_LIBRARY")
+  project_build_tools_set_shared_library_declaration(OPENTELEMETRY_PROTO_API
+                                                     opentelemetry_proto)
+else()
+  project_build_tools_set_static_library_declaration(OPENTELEMETRY_PROTO_API
+                                                     opentelemetry_proto)
+endif()
+
+target_include_directories(
+  opentelemetry_proto PUBLIC "$<BUILD_INTERFACE:${GENERATED_PROTOBUF_PATH}>"
+                             "$<INSTALL_INTERFACE:include>")
+
+# Disable include-what-you-use and clang-tidy on generated code.
 set_target_properties(
   opentelemetry_proto
   PROPERTIES CXX_INCLUDE_WHAT_YOU_USE ""
-)
-
-if(WITH_ABSEIL)
-  target_link_libraries(opentelemetry_proto PUBLIC absl::bad_variant_access)
+             CXX_CLANG_TIDY ""
+             C_VISIBILITY_PRESET "hidden"
+             CXX_VISIBILITY_PRESET "hidden"
+             VISIBILITY_INLINES_HIDDEN OFF)
+if(NOT Protobuf_INCLUDE_DIRS AND TARGET protobuf::libprotobuf)
+  get_target_property(Protobuf_INCLUDE_DIRS protobuf::libprotobuf
+                      INTERFACE_INCLUDE_DIRECTORIES)
+endif()
+if(Protobuf_INCLUDE_DIRS)
+  target_include_directories(
+    opentelemetry_proto BEFORE
+    PUBLIC "$<BUILD_INTERFACE:${Protobuf_INCLUDE_DIRS}>")
 endif()
 
 if(WITH_OTLP_GRPC)
@@ -344,11 +338,46 @@ if(WITH_OTLP_GRPC)
     ${LOGS_SERVICE_GRPC_PB_CPP_FILE} ${METRICS_SERVICE_GRPC_PB_CPP_FILE})
   set_target_version(opentelemetry_proto_grpc)
 
+  if(OTELCPP_PROTO_LIB_TYPE STREQUAL "SHARED_LIBRARY")
+    if(CMAKE_SYSTEM_NAME MATCHES "Windows|MinGW|WindowsStore")
+      # The codes generated by gRPC plugin do not support dll export/import
+      # declarations. To work around this, we enable WINDOWS_EXPORT_ALL_SYMBOLS
+      # property to export all symbols when building a shared library.
+      # TODO: This can be removed once gRPC plugin supports dll export/import.
+      set_target_properties(opentelemetry_proto_grpc
+                            PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    endif()
+  endif()
+
+  # Disable include-what-you-use and clang-tidy on generated code.
+  # The codes generated by gRPC plugin do not support symbol visibility
+  # declarations for public APIs. To work around this, we set visibility
+  # to default and disable hidden inline visibility. Otherwise, building
+  # a shared library will fail when user changes the default visibility
+  # to hidden (e.g., via -fvisibility=hidden compiler flag).
+  # TODO: C_VISIBILITY_PRESET, CXX_VISIBILITY_PRESET, and
+  # VISIBILITY_INLINES_HIDDEN can be removed once gRPC plugin supports symbol
+  # visibility declarations.
+  set_target_properties(
+    opentelemetry_proto_grpc
+    PROPERTIES CXX_INCLUDE_WHAT_YOU_USE ""
+               CXX_CLANG_TIDY ""
+               C_VISIBILITY_PRESET "default"
+               CXX_VISIBILITY_PRESET "default"
+               VISIBILITY_INLINES_HIDDEN OFF)
+
   list(APPEND OPENTELEMETRY_PROTO_TARGETS opentelemetry_proto_grpc)
   target_link_libraries(opentelemetry_proto_grpc PUBLIC opentelemetry_proto)
 
+  # gRPC uses numerous global variables, which can lead to conflicts when a
+  # user's dynamic libraries, executables, and otel-cpp are all built as dynamic
+  # libraries and linked against a statically built gRPC library. This may
+  # result in crashes. To prevent such conflicts, we also need to build
+  # opentelemetry_exporter_otlp_grpc_client as a static library.
   get_target_property(grpc_lib_type gRPC::grpc++ TYPE)
-  if(grpc_lib_type STREQUAL "SHARED_LIBRARY")
+
+  if(grpc_lib_type STREQUAL "SHARED_LIBRARY" OR OTELCPP_PROTO_LIB_TYPE STREQUAL
+                                                "SHARED_LIBRARY")
     target_link_libraries(opentelemetry_proto_grpc PUBLIC gRPC::grpc++)
   endif()
   set_target_properties(opentelemetry_proto_grpc PROPERTIES EXPORT_NAME
@@ -358,28 +387,19 @@ if(WITH_OTLP_GRPC)
                       INTERFACE_INCLUDE_DIRECTORIES)
   if(GRPC_INCLUDE_DIRECTORY)
     target_include_directories(
-      opentelemetry_proto_grpc
+      opentelemetry_proto_grpc BEFORE
       PUBLIC "$<BUILD_INTERFACE:${GRPC_INCLUDE_DIRECTORY}>")
   endif()
 endif()
 
-if(needs_proto_download)
-  add_dependencies(opentelemetry_proto opentelemetry-proto)
-endif()
 set_target_properties(opentelemetry_proto PROPERTIES EXPORT_NAME proto)
 patch_protobuf_targets(opentelemetry_proto)
 
 if(OPENTELEMETRY_INSTALL)
   install(
-    TARGETS ${OPENTELEMETRY_PROTO_TARGETS}
-    EXPORT "${PROJECT_NAME}-target"
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
-
-  install(
     DIRECTORY ${GENERATED_PROTOBUF_PATH}/opentelemetry
     DESTINATION include
+    COMPONENT exporters_otlp_common
     FILES_MATCHING
     PATTERN "*.h")
 endif()
@@ -387,18 +407,15 @@ endif()
 if(TARGET protobuf::libprotobuf)
   target_link_libraries(opentelemetry_proto PUBLIC protobuf::libprotobuf)
 else() # cmake 3.8 or lower
-  target_include_directories(opentelemetry_proto
-                             PUBLIC ${Protobuf_INCLUDE_DIRS})
   target_link_libraries(opentelemetry_proto PUBLIC ${Protobuf_LIBRARIES})
 endif()
 
+# this is needed on some older grcp versions specifically conan recipe for
+# grpc/1.54.3
 if(WITH_OTLP_GRPC)
-  if(WITH_ABSEIL)
-    find_package(absl CONFIG)
-    if(TARGET absl::synchronization)
-      target_link_libraries(opentelemetry_proto_grpc
-                            PRIVATE absl::synchronization)
-    endif()
+  if(TARGET absl::synchronization)
+    target_link_libraries(opentelemetry_proto_grpc
+                          PUBLIC "$<BUILD_INTERFACE:absl::synchronization>")
   endif()
 endif()
 

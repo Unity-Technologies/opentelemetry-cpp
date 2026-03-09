@@ -1,12 +1,29 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//bazel:otel_cc_benchmark.bzl", "otel_cc_benchmark")
 
 cc_test(
     name = "tracer_provider_test",
     srcs = [
         "tracer_provider_test.cc",
+    ],
+    tags = [
+        "test",
+        "trace",
+    ],
+    deps = [
+        "//sdk/src/resource",
+        "//sdk/src/trace",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "tracer_provider_set_test",
+    srcs = [
+        "tracer_provider_set_test.cc",
     ],
     tags = [
         "test",
@@ -138,6 +155,21 @@ cc_test(
     ],
     deps = [
         "//sdk/src/common:random",
+        "//sdk/src/trace",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "tracer_config_test",
+    srcs = [
+        "tracer_config_test.cc",
+    ],
+    tags = [
+        "test",
+        "trace",
+    ],
+    deps = [
         "//sdk/src/trace",
         "@com_google_googletest//:gtest_main",
     ],

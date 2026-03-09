@@ -5,17 +5,18 @@
 #include <string>
 
 #include "opentelemetry/common/key_value_iterable.h"
-#include "opentelemetry/logs/event_logger.h"
-#include "opentelemetry/logs/event_logger_provider.h"
-#include "opentelemetry/logs/logger.h"
+#include "opentelemetry/logs/event_logger.h"           // IWYU pragma: keep
+#include "opentelemetry/logs/event_logger_provider.h"  // IWYU pragma: keep
+#include "opentelemetry/logs/logger.h"                 // IWYU pragma: keep
 #include "opentelemetry/logs/logger_provider.h"
 #include "opentelemetry/logs/provider.h"
 #include "opentelemetry/nostd/shared_ptr.h"
 #include "opentelemetry/nostd/string_view.h"
-#include "opentelemetry/nostd/utility.h"
 
+#if OPENTELEMETRY_ABI_VERSION_NO < 2
 using opentelemetry::logs::EventLogger;
 using opentelemetry::logs::EventLoggerProvider;
+#endif
 using opentelemetry::logs::Logger;
 using opentelemetry::logs::LoggerProvider;
 using opentelemetry::logs::Provider;
@@ -72,6 +73,25 @@ TEST(Provider, GetLogger)
   EXPECT_EQ(nullptr, logger2);
 }
 
+#if OPENTELEMETRY_ABI_VERSION_NO < 2
+
+/*
+ * opentelemetry::logs::Provider::GetEventLoggerProvider() is deprecated.
+ * opentelemetry::logs::Provider::SetEventLoggerProvider() is deprecated.
+ * Suppress warnings in tests, to have a clean build and coverage.
+ */
+
+#  if defined(_MSC_VER)
+#    pragma warning(push)
+#    pragma warning(disable : 4996)
+#  elif defined(__GNUC__) && !defined(__clang__) && !defined(__apple_build_version__)
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#  elif defined(__clang__) || defined(__apple_build_version__)
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#  endif
+
 class TestEventLoggerProvider : public EventLoggerProvider
 {
 public:
@@ -113,3 +133,13 @@ TEST(Provider, CreateEventLogger)
 
   EXPECT_EQ(nullptr, logger);
 }
+
+#  if defined(_MSC_VER)
+#    pragma warning(pop)
+#  elif defined(__GNUC__) && !defined(__clang__) && !defined(__apple_build_version__)
+#    pragma GCC diagnostic pop
+#  elif defined(__clang__) || defined(__apple_build_version__)
+#    pragma clang diagnostic pop
+#  endif
+
+#endif

@@ -1,6 +1,8 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
 cc_binary(
     name = "example_otlp_grpc",
     srcs = [
@@ -166,5 +168,27 @@ cc_binary(
         "//exporters/otlp:otlp_file_exporter",
         "//exporters/otlp:otlp_file_metric_exporter",
         "//sdk/src/metrics",
+    ],
+)
+
+cc_binary(
+    name = "example_otlp_instrumented_http",
+    srcs = [
+        "http_instrumented_main.cc",
+    ],
+    tags = [
+        "examples",
+        "otlp",
+        "otlp_http",
+    ],
+    deps = [
+        "//api",
+        "//examples/common/logs_foo_library:common_logs_foo_library",
+        "//examples/common/metrics_foo_library:common_metrics_foo_library",
+        "//exporters/otlp:otlp_http_exporter",
+        "//exporters/otlp:otlp_http_log_record_exporter",
+        "//exporters/otlp:otlp_http_metric_exporter",
+        "//sdk/src/metrics",
+        "//sdk/src/trace",
     ],
 )

@@ -11,8 +11,8 @@
 #include "opentelemetry/common/key_value_iterable.h"
 #include "opentelemetry/common/key_value_iterable_view.h"
 #include "opentelemetry/logs/event_id.h"
-#include "opentelemetry/logs/event_logger.h"
-#include "opentelemetry/logs/event_logger_provider.h"
+#include "opentelemetry/logs/event_logger.h"           // IWYU pragma: keep
+#include "opentelemetry/logs/event_logger_provider.h"  // IWYU pragma: keep
 #include "opentelemetry/logs/log_record.h"
 #include "opentelemetry/logs/logger.h"
 #include "opentelemetry/logs/logger_provider.h"
@@ -22,7 +22,6 @@
 #include "opentelemetry/nostd/span.h"
 #include "opentelemetry/nostd/string_view.h"
 #include "opentelemetry/nostd/unique_ptr.h"
-#include "opentelemetry/nostd/utility.h"
 
 using opentelemetry::logs::EventId;
 using opentelemetry::logs::Logger;
@@ -161,6 +160,24 @@ TEST(Logger, LogMethodOverloads)
                 opentelemetry::common::MakeAttributes({{"key1", "value 1"}, {"key2", 2}}));
 }
 
+#if OPENTELEMETRY_ABI_VERSION_NO < 2
+
+/*
+ * opentelemetry::logs::Provider::GetLoggerProvider() is deprecated.
+ * Suppress warnings in tests, to have a clean build and coverage.
+ */
+
+#  if defined(_MSC_VER)
+#    pragma warning(push)
+#    pragma warning(disable : 4996)
+#  elif defined(__GNUC__) && !defined(__clang__) && !defined(__apple_build_version__)
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#  elif defined(__clang__) || defined(__apple_build_version__)
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#  endif
+
 TEST(Logger, EventLogMethodOverloads)
 {
   auto lp = Provider::GetLoggerProvider();
@@ -193,6 +210,16 @@ TEST(Logger, EventLogMethodOverloads)
                           opentelemetry::common::MakeAttributes(vec));
 }
 
+#  if defined(_MSC_VER)
+#    pragma warning(pop)
+#  elif defined(__GNUC__) && !defined(__clang__) && !defined(__apple_build_version__)
+#    pragma GCC diagnostic pop
+#  elif defined(__clang__) || defined(__apple_build_version__)
+#    pragma clang diagnostic pop
+#  endif
+
+#endif
+
 // Define a basic Logger class
 class TestLogger : public Logger
 {
@@ -205,7 +232,11 @@ class TestLogger : public Logger
 
   using Logger::EmitLogRecord;
 
-  void EmitLogRecord(nostd::unique_ptr<opentelemetry::logs::LogRecord> &&) noexcept override {}
+  void EmitLogRecord(
+      nostd::unique_ptr<opentelemetry::logs::LogRecord> &&log_record) noexcept override
+  {
+    auto log_record_ptr = std::move(log_record);
+  }
 };
 
 // Define a basic LoggerProvider class that returns an instance of the logger class defined above
