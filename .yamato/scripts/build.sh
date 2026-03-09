@@ -32,6 +32,7 @@ declare -a otel_build_options=(
     "-DCMAKE_TOOLCHAIN_FILE=$VCPKG_CMAKE"                       # Use vcpkg toolchain file
     "-DBUILD_TESTING=OFF"                                       # Whether to enable tests (on), makes the build faster and it does not work with x64-windows-static-md
     "-DWITH_EXAMPLES=OFF"                                       # Whether to build examples (on), makes the build faster and it does not work with x64-windows-static-md
+    "-DWITH_BENCHMARK=OFF"                                      # Whether to build benchmarks (on), makes the build faster
 )
 mkdir -p $build_dir
 cmake -S . -B $build_dir ${otel_build_options[@]}
